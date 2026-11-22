@@ -5,8 +5,8 @@ import type { StatMods } from './types/stats'
 
 /**
  * Sums a single stat across a list of partial stat modifiers, treating missing
- * entries as zero. Used by {@link getEffectiveStat} to fold equipment and
- * active-effect bonuses into an actor's base stat.
+ * entries as zero. Used by {@link getEffectiveStat} to fold equipment bonuses
+ * into an actor's base stat.
  */
 export function sumModifiers(mods: readonly StatMods[], stat: Stat): number {
   let total = 0
@@ -17,10 +17,10 @@ export function sumModifiers(mods: readonly StatMods[], stat: Stat): number {
 }
 
 /**
- * Resolves an actor's live value for a stat as base + equipment + active
- * effects. Stats are derived on read and never persisted. Callers use this for
- * Reflex (reaction delay), Perception (skill reads), Attack/Defense (damage),
- * and so on. Throws if the actor is not present in the combat state.
+ * Resolves an actor's live value for a stat as base + equipment modifiers.
+ * Stats are derived on read and never persisted. Callers use this for Reflex
+ * (reaction delay), Perception (skill reads), Attack/Defense (damage), and so
+ * on. Throws if the actor is not present in the combat state.
  */
 export function getEffectiveStat(state: CombatState, actorId: ActorId, stat: Stat): number {
   const actor = state.actors[actorId]
@@ -31,13 +31,8 @@ export function getEffectiveStat(state: CombatState, actorId: ActorId, stat: Sta
   const equipmentMods: StatMods[] = actor.template.equipmentIds.map(
     (equipmentId) => state.content.equipment[equipmentId]?.statMods ?? {},
   )
-  const effectMods = actor.runtime.effects.map((effect) => effect.statMods)
 
-  return (
-    actor.template.baseStats[stat] +
-    sumModifiers(equipmentMods, stat) +
-    sumModifiers(effectMods, stat)
-  )
+  return actor.template.baseStats[stat] + sumModifiers(equipmentMods, stat)
 }
 
 /**

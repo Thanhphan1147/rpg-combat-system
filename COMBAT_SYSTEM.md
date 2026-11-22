@@ -159,7 +159,7 @@ interface ChainEdge {
 - **Pure** `packages/engine`: no wall-clock, no I/O. *(Seeded RNG / determinism deferred for the POC.)*
 - The web layer owns countdown pacing and text rendering.
 - **Data-driven:**
-  - `SkillDef` — phases, tags, hitstun, chain edges, armor.
+  - `SkillDef` — phases, cooldown, hitstun, armor.
   - `CharacterTemplate` — authored content, referenced by stable ID.
   - `CharacterRuntime` — current pools, effects, cooldowns.
 - **Derived stats are computed on read and never persisted.**

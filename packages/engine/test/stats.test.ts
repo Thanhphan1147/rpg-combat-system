@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getEffectiveStat, getMaxHp, sumModifiers } from '../src/stats'
-import type { CharacterTemplate, EffectInstance, EquipmentDef } from '../src/types/character'
-import { actorId, characterId, effectId, equipmentId } from '../src/types/ids'
+import type { CharacterTemplate, EquipmentDef } from '../src/types/character'
+import { actorId, characterId, equipmentId } from '../src/types/ids'
 import { Stat } from '../src/types/stats'
 import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 
@@ -33,19 +33,18 @@ function createFixture() {
     equipment: { sword },
   }
   const state: CombatState = {
-    tick: 0,
     actors: {
       'hero-1': {
         id: actor,
         side: 'player',
         template,
-        runtime: { templateId: template.id, pools: { hp: 100 }, effects: [], cooldowns: {} },
-        acting: null,
+        runtime: { templateId: template.id, pools: { hp: 100 }, cooldowns: {} },
       },
     },
     order: [actor],
     content,
     rules,
+    timeline: { tick: 0, active: [] },
     pending: null,
     log: [],
     status: 'active',
@@ -60,20 +59,6 @@ describe('getEffectiveStat', () => {
     expect(getEffectiveStat(state, actor, Stat.Attack)).toBe(13)
     expect(getEffectiveStat(state, actor, Stat.Speed)).toBe(12)
     expect(getEffectiveStat(state, actor, Stat.Defense)).toBe(4)
-  })
-
-  it('adds active effect modifiers', () => {
-    const { state, actor } = createFixture()
-    const effect: EffectInstance = {
-      instanceId: 'fx-1',
-      effectId: effectId('rage'),
-      sourceActorId: null,
-      remainingTicks: 5,
-      statMods: { attack: 3, defense: -1 },
-    }
-    state.actors['hero-1']?.runtime.effects.push(effect)
-    expect(getEffectiveStat(state, actor, Stat.Attack)).toBe(16)
-    expect(getEffectiveStat(state, actor, Stat.Defense)).toBe(3)
   })
 
   it('exposes max hp from the hp stat', () => {

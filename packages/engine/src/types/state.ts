@@ -6,8 +6,9 @@ import type { Phase, SkillDef } from './skill'
 export type ActorSide = 'player' | 'enemy'
 export type CombatStatus = 'active' | 'ended'
 
-export interface ActingState {
+export interface TimelineSkill {
   instanceId: string
+  actorId: ActorId
   skillId: SkillId
   phase: Phase
   startedAt: number
@@ -19,12 +20,16 @@ export interface ActingState {
   resolved: boolean
 }
 
+export interface Timeline {
+  tick: number
+  active: TimelineSkill[]
+}
+
 export interface CombatActor {
   id: ActorId
   side: ActorSide
   template: CharacterTemplate
   runtime: CharacterRuntime
-  acting: ActingState | null
 }
 
 export interface ReactionWindow {
@@ -52,11 +57,11 @@ export interface Ruleset {
 }
 
 export interface CombatState {
-  tick: number
   actors: Record<string, CombatActor>
   order: ActorId[]
   content: ContentBundle
   rules: Ruleset
+  timeline: Timeline
   pending: PendingDecision | null
   log: CombatLogEntry[]
   status: CombatStatus

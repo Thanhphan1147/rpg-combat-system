@@ -1,4 +1,4 @@
-import type { ActorId, CharacterId, EffectId, EquipmentId, SkillId } from './ids'
+import type { CharacterId, EquipmentId, SkillId } from './ids'
 import type { StatBlock, StatMods } from './stats'
 
 export interface CharacterTemplate {
@@ -16,17 +16,8 @@ export interface EquipmentDef {
   grantedSkillIds: SkillId[]
 }
 
-export interface EffectInstance {
-  instanceId: string
-  effectId: EffectId
-  sourceActorId: ActorId | null
-  remainingTicks: number
-  statMods: StatMods
-}
-
 export interface CharacterRuntime {
   templateId: CharacterId
   pools: { hp: number }
-  effects: EffectInstance[]
   cooldowns: Record<string, number>
 }

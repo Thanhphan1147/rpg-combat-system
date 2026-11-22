@@ -15,8 +15,8 @@ export interface SkillDef {
   startup: number
   delivery: number
   ending: number
+  cooldown: number
   hitstun: number
   effectIds: EffectId[]
-  tags: string[]
   armor: SkillArmor
 }
