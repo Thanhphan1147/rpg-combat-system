@@ -13,7 +13,6 @@ export interface EquipmentDef {
   id: EquipmentId
   name: string
   statMods: StatMods
-  grantedSkillIds: SkillId[]
 }
 
 export interface CharacterRuntime {

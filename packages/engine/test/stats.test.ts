@@ -25,7 +25,6 @@ function createFixture() {
     id: equipmentId('sword'),
     name: 'Sword',
     statMods: { attack: 5, speed: 2 },
-    grantedSkillIds: [],
   }
   const content: ContentBundle = {
     skills: {},
