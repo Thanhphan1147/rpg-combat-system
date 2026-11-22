@@ -1,4 +1,3 @@
-import type { RngState } from '../rng'
 import type { CharacterRuntime, CharacterTemplate, EquipmentDef } from './character'
 import type { CombatLogEntry } from './events'
 import type { ActorId, SkillId } from './ids'
@@ -53,8 +52,6 @@ export interface Ruleset {
 }
 
 export interface CombatState {
-  seed: number
-  rng: RngState
   tick: number
   actors: Record<string, CombatActor>
   order: ActorId[]

@@ -3,6 +3,11 @@ import type { CombatState } from './types/state'
 import { Stat } from './types/stats'
 import type { StatMods } from './types/stats'
 
+/**
+ * Sums a single stat across a list of partial stat modifiers, treating missing
+ * entries as zero. Used by {@link getEffectiveStat} to fold equipment and
+ * active-effect bonuses into an actor's base stat.
+ */
 export function sumModifiers(mods: readonly StatMods[], stat: Stat): number {
   let total = 0
   for (const mod of mods) {
@@ -11,6 +16,12 @@ export function sumModifiers(mods: readonly StatMods[], stat: Stat): number {
   return total
 }
 
+/**
+ * Resolves an actor's live value for a stat as base + equipment + active
+ * effects. Stats are derived on read and never persisted. Callers use this for
+ * Reflex (reaction delay), Perception (skill reads), Attack/Defense (damage),
+ * and so on. Throws if the actor is not present in the combat state.
+ */
 export function getEffectiveStat(state: CombatState, actorId: ActorId, stat: Stat): number {
   const actor = state.actors[actorId]
   if (actor === undefined) {
@@ -29,6 +40,10 @@ export function getEffectiveStat(state: CombatState, actorId: ActorId, stat: Sta
   )
 }
 
+/**
+ * Returns an actor's effective maximum HP (the Hp stat). Used when
+ * initialising health pools and when rendering an actor's status.
+ */
 export function getMaxHp(state: CombatState, actorId: ActorId): number {
   return getEffectiveStat(state, actorId, Stat.Hp)
 }

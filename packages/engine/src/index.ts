@@ -1,4 +1,3 @@
-export * from './rng'
 export * from './stats'
 export * from './types/character'
 export * from './types/events'

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { seedRng } from '../src/rng'
 import { getEffectiveStat, getMaxHp, sumModifiers } from '../src/stats'
 import type { CharacterTemplate, EffectInstance, EquipmentDef } from '../src/types/character'
 import { actorId, characterId, effectId, equipmentId } from '../src/types/ids'
@@ -34,8 +33,6 @@ function createFixture() {
     equipment: { sword },
   }
   const state: CombatState = {
-    seed: 1,
-    rng: seedRng(1),
     tick: 0,
     actors: {
       'hero-1': {
