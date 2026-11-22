@@ -1,6 +1,5 @@
 export * from './stats'
 export * from './types/character'
-export * from './types/events'
 export * from './types/facade'
 export * from './types/ids'
 export * from './types/intent'

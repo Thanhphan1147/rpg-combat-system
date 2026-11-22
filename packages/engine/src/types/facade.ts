@@ -1,4 +1,3 @@
-import type { CombatLogEntry } from './events'
 import type { ActorId, SkillId } from './ids'
 import type { Intent } from './intent'
 import type { SkillKind } from './skill'
@@ -35,7 +34,6 @@ export interface CombatSnapshot {
 
 export interface CombatStepResult {
   prompt: Prompt | null
-  events: readonly CombatLogEntry[]
   ended: boolean
 }
 
@@ -44,5 +42,4 @@ export interface Combat {
   getPrompt(): Prompt | null
   step(intent: Intent): CombatStepResult
   snapshot(): CombatSnapshot
-  getLog(): readonly CombatLogEntry[]
 }

@@ -28,7 +28,7 @@ export function getEffectiveStat(state: CombatState, actorId: ActorId, stat: Sta
     throw new Error(`Unknown actor: ${actorId}`)
   }
 
-  const equipmentMods: StatMods[] = actor.template.equipmentIds.map(
+  const equipmentMods: StatMods[] = actor.runtime.equipmentIds.map(
     (equipmentId) => state.content.equipment[equipmentId]?.statMods ?? {},
   )
 

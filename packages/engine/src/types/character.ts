@@ -5,8 +5,6 @@ export interface CharacterTemplate {
   id: CharacterId
   name: string
   baseStats: StatBlock
-  skillIds: SkillId[]
-  equipmentIds: EquipmentId[]
 }
 
 export interface EquipmentDef {
@@ -17,6 +15,9 @@ export interface EquipmentDef {
 
 export interface CharacterRuntime {
   templateId: CharacterId
+  level: number
   pools: { hp: number }
+  equipmentIds: EquipmentId[]
+  skillIds: SkillId[]
   cooldowns: Record<string, number>
 }

@@ -1,5 +1,4 @@
 import type { CharacterRuntime, CharacterTemplate, EquipmentDef } from './character'
-import type { CombatLogEntry } from './events'
 import type { ActorId, SkillId } from './ids'
 import type { Phase, SkillDef } from './skill'
 
@@ -63,7 +62,6 @@ export interface CombatState {
   rules: Ruleset
   timeline: Timeline
   pending: PendingDecision | null
-  log: CombatLogEntry[]
   status: CombatStatus
   winner: ActorId | null
 }

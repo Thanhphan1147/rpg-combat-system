@@ -18,8 +18,6 @@ function createFixture() {
     id: characterId('hero'),
     name: 'Hero',
     baseStats: { speed: 10, reflex: 10, perception: 10, hp: 100, attack: 8, defense: 4 },
-    skillIds: [],
-    equipmentIds: [equipmentId('sword')],
   }
   const sword: EquipmentDef = {
     id: equipmentId('sword'),
@@ -37,7 +35,14 @@ function createFixture() {
         id: actor,
         side: 'player',
         template,
-        runtime: { templateId: template.id, pools: { hp: 100 }, cooldowns: {} },
+        runtime: {
+          templateId: template.id,
+          level: 1,
+          pools: { hp: 100 },
+          equipmentIds: [equipmentId('sword')],
+          skillIds: [],
+          cooldowns: {},
+        },
       },
     },
     order: [actor],
@@ -45,7 +50,6 @@ function createFixture() {
     rules,
     timeline: { tick: 0, active: [] },
     pending: null,
-    log: [],
     status: 'active',
     winner: null,
   }
