@@ -161,7 +161,7 @@ interface ChainEdge {
 - **Data-driven:**
   - `SkillDef` — phases, cooldown, hitstun, armor.
   - `CharacterTemplate` — authored content, referenced by stable ID.
-  - `CharacterRuntime` — current pools, effects, cooldowns.
+  - `CharacterRuntime` — current pools, current skills, cooldowns.
 - **Derived stats are computed on read and never persisted.**
 
 ---
@@ -170,7 +170,7 @@ interface ChainEdge {
 
 **In scope:** three stats; tick timeline & scheduler; three-phase skills; perception-based identification; reflex delay; reaction race; block / dodge / parry / counter; hitstun; tempo; damage; punish tiers (×1.5 + stagger on startup interrupt); per-skill super-armor; cooldowns; turn loop with pause and Speed tiebreak; sample skills & tests.
 
-**Deferred:** chaining (combo / mixup) and chain pre-planning/concealment; `obscurity`; bestiary / known-skill exemption; Speed phase-tick scaling; seeded RNG / determinism / replay.
+**Deferred:** chaining (combo / mixup) and chain pre-planning/concealment; `obscurity`; bestiary / known-skill exemption; equipment & stat modifiers; effects (buffs/debuffs); level scaling; Speed phase-tick scaling; seeded RNG / determinism / replay.
 
 ---
 

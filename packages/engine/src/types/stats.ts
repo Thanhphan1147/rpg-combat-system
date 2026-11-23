@@ -10,4 +10,3 @@ export const Stat = {
 export type Stat = (typeof Stat)[keyof typeof Stat]
 
 export type StatBlock = Record<Stat, number>
-export type StatMods = Partial<StatBlock>

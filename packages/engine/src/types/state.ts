@@ -1,4 +1,4 @@
-import type { CharacterRuntime, CharacterTemplate, EquipmentDef } from './character'
+import type { CharacterRuntime, CharacterTemplate } from './character'
 import type { ActorId, SkillId } from './ids'
 import type { Phase, SkillDef } from './skill'
 
@@ -45,7 +45,6 @@ export type PendingDecision =
 export interface ContentBundle {
   skills: Record<string, SkillDef>
   characters: Record<string, CharacterTemplate>
-  equipment: Record<string, EquipmentDef>
 }
 
 export interface Ruleset {

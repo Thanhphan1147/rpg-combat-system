@@ -1,4 +1,4 @@
-import type { EffectId, SkillId } from './ids'
+import type { SkillId } from './ids'
 
 export type Phase = 'startup' | 'delivery' | 'ending'
 
@@ -17,6 +17,5 @@ export interface SkillDef {
   ending: number
   cooldown: number
   hitstun: number
-  effectIds: EffectId[]
   armor: SkillArmor
 }

@@ -1,5 +1,5 @@
-import type { CharacterId, EquipmentId, SkillId } from './ids'
-import type { StatBlock, StatMods } from './stats'
+import type { CharacterId, SkillId } from './ids'
+import type { StatBlock } from './stats'
 
 export interface CharacterTemplate {
   id: CharacterId
@@ -7,17 +7,9 @@ export interface CharacterTemplate {
   baseStats: StatBlock
 }
 
-export interface EquipmentDef {
-  id: EquipmentId
-  name: string
-  statMods: StatMods
-}
-
 export interface CharacterRuntime {
   templateId: CharacterId
-  level: number
   pools: { hp: number }
-  equipmentIds: EquipmentId[]
   skillIds: SkillId[]
   cooldowns: Record<string, number>
 }

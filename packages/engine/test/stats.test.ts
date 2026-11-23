@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { getEffectiveStat, getMaxHp, sumModifiers } from '../src/stats'
-import type { CharacterTemplate, EquipmentDef } from '../src/types/character'
-import { actorId, characterId, equipmentId } from '../src/types/ids'
+import { getEffectiveStat, getMaxHp } from '../src/stats'
+import type { CharacterTemplate } from '../src/types/character'
+import { actorId, characterId } from '../src/types/ids'
 import { Stat } from '../src/types/stats'
 import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 
@@ -19,15 +19,9 @@ function createFixture() {
     name: 'Hero',
     baseStats: { speed: 10, reflex: 10, perception: 10, hp: 100, attack: 8, defense: 4 },
   }
-  const sword: EquipmentDef = {
-    id: equipmentId('sword'),
-    name: 'Sword',
-    statMods: { attack: 5, speed: 2 },
-  }
   const content: ContentBundle = {
     skills: {},
     characters: { hero: template },
-    equipment: { sword },
   }
   const state: CombatState = {
     actors: {
@@ -35,14 +29,7 @@ function createFixture() {
         id: actor,
         side: 'player',
         template,
-        runtime: {
-          templateId: template.id,
-          level: 1,
-          pools: { hp: 100 },
-          equipmentIds: [equipmentId('sword')],
-          skillIds: [],
-          cooldowns: {},
-        },
+        runtime: { templateId: template.id, pools: { hp: 100 }, skillIds: [], cooldowns: {} },
       },
     },
     order: [actor],
@@ -57,10 +44,10 @@ function createFixture() {
 }
 
 describe('getEffectiveStat', () => {
-  it('adds equipment modifiers to base stats', () => {
+  it('resolves stats from the base template', () => {
     const { state, actor } = createFixture()
-    expect(getEffectiveStat(state, actor, Stat.Attack)).toBe(13)
-    expect(getEffectiveStat(state, actor, Stat.Speed)).toBe(12)
+    expect(getEffectiveStat(state, actor, Stat.Attack)).toBe(8)
+    expect(getEffectiveStat(state, actor, Stat.Speed)).toBe(10)
     expect(getEffectiveStat(state, actor, Stat.Defense)).toBe(4)
   })
 
@@ -72,12 +59,5 @@ describe('getEffectiveStat', () => {
   it('throws for unknown actors', () => {
     const { state } = createFixture()
     expect(() => getEffectiveStat(state, actorId('ghost'), Stat.Attack)).toThrow(/Unknown actor/)
-  })
-})
-
-describe('sumModifiers', () => {
-  it('sums a single stat across modifiers, ignoring missing keys', () => {
-    expect(sumModifiers([{ attack: 2 }, { attack: 3, speed: 9 }, {}], Stat.Attack)).toBe(5)
-    expect(sumModifiers([{ attack: 2 }], Stat.Speed)).toBe(0)
   })
 })
