@@ -2,7 +2,7 @@
 
 A text-only, single-player browser RPG. Combat is **turn-based in structure, semi-realtime in feel**: every action unfolds on a continuous **tick timeline**, and speed/reflex/perception decide how much of an opponent's action you can read and answer before it lands.
 
-The engine is **deterministic and replayable** from a `seed + input log`.
+Determinism/replay from a `seed + input log` is a **later goal** — seeded RNG is deferred for the POC.
 
 ---
 
@@ -83,7 +83,7 @@ advance ticks → reach decision point → pause → input → apply → repeat
 ```
 
 - **No wall clock ever runs.** `step()` advances to the next decision point, returns "needs intent from actor X + legal options," and the UI waits as long as needed.
-- **Who is prompted:** whoever is free first. If two are free on the same tick (or at combat start), **higher Speed** wins; an exact Speed tie is broken by a **seeded coin flip** (deterministic — never `Math.random()`).
+- **Who is prompted:** whoever is free first. If two are free on the same tick (or at combat start), **higher Speed** wins; an exact Speed tie is broken by a **coin flip** *(seeded RNG deferred for the POC; may use `Math.random()` for now)*.
 - **Auto-advance** if a free actor has no legal options.
 - Defenders still receive a reaction decision point on every incoming attack, even while committed or recovering — they may simply be *too slow to succeed*.
 - **Block and dodge are always playable**, even when the skill is unidentified. Whether they *land in time* depends on the timing race.
@@ -156,21 +156,21 @@ interface ChainEdge {
 
 ## 12. Engine architecture
 
-- **Pure, deterministic** `packages/engine`: seeded RNG (including coin flips), no wall-clock, no I/O.
+- **Pure** `packages/engine`: no wall-clock, no I/O. *(Seeded RNG / determinism deferred for the POC.)*
 - The web layer owns countdown pacing and text rendering.
 - **Data-driven:**
-  - `SkillDef` — phases, tags, hitstun, chain edges, armor.
+  - `SkillDef` — phases, cooldown, hitstun, armor.
   - `CharacterTemplate` — authored content, referenced by stable ID.
-  - `CharacterRuntime` — current pools, effects, cooldowns.
+  - `CharacterRuntime` — current pools, current skills, cooldowns.
 - **Derived stats are computed on read and never persisted.**
 
 ---
 
 ## POC scope
 
-**In scope:** three stats; tick timeline & scheduler; three-phase skills; perception-based identification; reflex delay; reaction race; block / dodge / parry / counter; hitstun; tempo; damage; punish tiers (×1.5 + stagger on startup interrupt); per-skill super-armor; cooldowns; turn loop with pause, Speed tiebreak and seeded coin flip; deterministic replay; sample skills & tests.
+**In scope:** three stats; tick timeline & scheduler; three-phase skills; perception-based identification; reflex delay; reaction race; block / dodge / parry / counter; hitstun; tempo; damage; punish tiers (×1.5 + stagger on startup interrupt); per-skill super-armor; cooldowns; turn loop with pause and Speed tiebreak; sample skills & tests.
 
-**Deferred:** chaining (combo / mixup) and chain pre-planning/concealment; `obscurity`; bestiary / known-skill exemption; Speed phase-tick scaling.
+**Deferred:** chaining (combo / mixup) and chain pre-planning/concealment; `obscurity`; bestiary / known-skill exemption; equipment & stat modifiers; effects (buffs/debuffs); level scaling; Speed phase-tick scaling; seeded RNG / determinism / replay.
 
 ---
 
