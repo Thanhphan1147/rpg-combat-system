@@ -6,6 +6,7 @@
     getFreeActors,
     getMaxHp,
     getPrompt,
+    readTicks,
     step,
     Stat,
   } from '@rpg/engine'
@@ -100,6 +101,22 @@
     return combat.content.skills[id]?.name ?? id
   }
 
+  function describeIncoming(attackerId: ActorId, skillId: SkillId): string {
+    const skill = combat.content.skills[skillId]
+    if (skill === undefined) {
+      return `The ${actorName(attackerId)} moves.`
+    }
+    const observer = combat.roster.find((id) => id !== attackerId)
+    if (observer === undefined) {
+      return `The ${actorName(attackerId)} winds up a ${skill.name}.`
+    }
+    const perception = getEffectiveStat(combat, observer, Stat.Perception)
+    const readable = readTicks(perception, combat.rules) <= skill.startup
+    return readable
+      ? `The ${actorName(attackerId)} winds up a ${skill.name}.`
+      : skill.vagueDescription
+  }
+
   function skillSpan(skill: TimelineSkill): {
     startupEnd: number
     connectAt: number
@@ -139,7 +156,7 @@
       case 'skillUsed':
         return event.actorId === PLAYER
           ? `You commit to a ${skillName(event.skillId)}.`
-          : `The ${actorName(event.actorId)} winds up a ${skillName(event.skillId)}.`
+          : describeIncoming(event.actorId, event.skillId)
       case 'reactionUsed':
         return event.actorId === PLAYER
           ? `You answer with a ${skillName(event.skillId)}.`
