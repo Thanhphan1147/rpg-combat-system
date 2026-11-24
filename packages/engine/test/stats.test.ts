@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getEffectiveStat, getMaxHp } from '../src/stats'
 import type { CharacterTemplate } from '../src/types/character'
-import { actorId, characterId } from '../src/types/ids'
 import { Stat } from '../src/types/stats'
 import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 
@@ -13,9 +12,9 @@ const rules: Ruleset = {
 }
 
 function createFixture() {
-  const actor = actorId('hero-1')
+  const actor = 'hero-1'
   const template: CharacterTemplate = {
-    id: characterId('hero'),
+    id: 'hero',
     name: 'Hero',
     baseStats: { speed: 10, reflex: 10, perception: 10, hp: 100, attack: 8, defense: 4 },
   }
@@ -58,6 +57,6 @@ describe('getEffectiveStat', () => {
 
   it('throws for unknown actors', () => {
     const { state } = createFixture()
-    expect(() => getEffectiveStat(state, actorId('ghost'), Stat.Attack)).toThrow(/Unknown actor/)
+    expect(() => getEffectiveStat(state, 'ghost', Stat.Attack)).toThrow(/Unknown actor/)
   })
 })
