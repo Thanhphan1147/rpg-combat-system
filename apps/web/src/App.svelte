@@ -557,7 +557,9 @@
           {#if encounter.loot.length > 0}
             <p class="meta-line">
               {fill(NARRATION.spoils, {
-                items: encounter.loot.map((item) => item.name).join(', '),
+                items: encounter.loot
+                  .map((item) => `${item.name} (${buffLine(item.buffs)})`)
+                  .join(', '),
               })}
             </p>
           {:else}
@@ -584,7 +586,7 @@
                 <span class="slot-label">{slot}</span>
                 {#if run.gear[slot]}
                   <span class="slot-essence">{run.gear[slot].name}</span>
-                  <span class="slot-flavor">{run.gear[slot].flavor}</span>
+                  <span class="slot-buffs">{buffLine(run.gear[slot].buffs)}</span>
                 {:else}
                   <span class="slot-empty">empty</span>
                 {/if}
@@ -603,6 +605,7 @@
                     {item.name}
                     <span class="slot-tag">{item.slot}</span>
                   </span>
+                  <span class="essence-buffs">{buffLine(item.buffs)}</span>
                   <span class="equipment-flavor">{item.flavor}</span>
                 </button>
               {/each}
