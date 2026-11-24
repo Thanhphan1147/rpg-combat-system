@@ -11,6 +11,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@rpg/engine": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:"
