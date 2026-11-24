@@ -66,6 +66,8 @@ export interface Ruleset {
   perception: { base: number; scale: number; floor: number }
   interruptDuringStartup: { damageMultiplier: number; stagger: number }
   speedScaling: { rate: number; startupFloor: number }
+  /** Global multiplier applied after skill power and attack/defense. Defaults to 1. */
+  damageMultiplier?: number
 }
 
 export interface CombatState {

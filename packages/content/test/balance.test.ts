@@ -49,6 +49,7 @@ describe('balance simulation', () => {
     let playerWins = 0
     let stalls = 0
     let totalSteps = 0
+    let totalHits = 0
 
     for (let run = 0; run < runs; run += 1) {
       const encounter = rollEncounter({ random })
@@ -74,11 +75,14 @@ describe('balance simulation', () => {
         playerWins += 1
       }
       totalSteps += steps
+      totalHits += state.log.filter((entry) => entry.event.kind === 'hit').length
     }
 
     expect(stalls).toBe(0)
     expect(playerWins / runs).toBeGreaterThan(0.35)
     expect(playerWins / runs).toBeLessThan(0.65)
-    expect(totalSteps / runs).toBeLessThan(400)
+    expect(totalSteps / runs).toBeLessThan(40)
+    expect(totalHits / runs).toBeGreaterThan(2)
+    expect(totalHits / runs).toBeLessThan(6)
   })
 })

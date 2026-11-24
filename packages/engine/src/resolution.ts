@@ -26,7 +26,8 @@ function damageFor(
 ): number {
   const attack = getEffectiveStat(state, attackerId, Stat.Attack)
   const defense = getEffectiveStat(state, targetId, Stat.Defense)
-  return Math.max(1, power + attack - defense)
+  const multiplier = state.rules.damageMultiplier ?? 1
+  return Math.max(1, Math.round((power + attack - defense) * multiplier))
 }
 
 function applyDamage(state: CombatState, targetId: ActorId, amount: number): CombatState {

@@ -9,4 +9,5 @@ export const standardRules: Ruleset = {
   perception: { base: 1200, scale: 5, floor: 100 },
   interruptDuringStartup: { damageMultiplier: 1.5, stagger: 400 },
   speedScaling: { rate: 1, startupFloor: 100 },
+  damageMultiplier: 3,
 }
