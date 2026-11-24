@@ -51,7 +51,7 @@ describe('balance simulation', () => {
     let totalSteps = 0
 
     for (let run = 0; run < runs; run += 1) {
-      const encounter = rollEncounter(random)
+      const encounter = rollEncounter({ random })
       let state = createCombat({
         content: encounter.content,
         rules: encounter.rules,

@@ -264,7 +264,7 @@ button.ghost {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 48dvh;
+  max-height: 55dvh;
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-width: thin;
@@ -338,6 +338,15 @@ button.ghost {
 .essence-skill {
   font-size: 12px;
   color: #9a9486;
+}
+
+.slot-tag {
+  margin-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f6a5e;
 }
 
 .slot-empty {

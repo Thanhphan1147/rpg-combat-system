@@ -1,0 +1,183 @@
+import { Stat } from '@rpg/engine'
+import type { StatBlock } from '@rpg/engine'
+import { HP_PER_POINT, STAT_ORDER } from './stats'
+
+export type EquipmentSlot = 'weapon' | 'armor' | 'helmet' | 'boots'
+
+export const EQUIPMENT_SLOTS: EquipmentSlot[] = ['weapon', 'armor', 'helmet', 'boots']
+
+export interface Equipment {
+  id: string
+  slot: EquipmentSlot
+  name: string
+  buffs: Partial<StatBlock>
+}
+
+/** Fraction of an item's budget reserved for its signature stats. */
+export const EQUIPMENT_CORE_WEIGHT = 0.6
+export const EQUIPMENT_BASE_BUDGET = 40
+export const EQUIPMENT_BUDGET_PER_LEVEL = 15
+
+interface SlotProfile {
+  core: Partial<Record<Stat, number>>
+  off: Partial<Record<Stat, number>>
+}
+
+const SLOT_PROFILES: Record<EquipmentSlot, SlotProfile> = {
+  weapon: {
+    core: { attack: 1 },
+    off: { speed: 0.5, reflex: 0.5 },
+  },
+  armor: {
+    core: { maxHp: 0.7, defense: 0.3 },
+    off: { perception: 0.5, reflex: 0.5 },
+  },
+  helmet: {
+    core: { perception: 0.6, reflex: 0.4 },
+    off: { maxHp: 0.7, defense: 0.3 },
+  },
+  boots: {
+    core: { speed: 1 },
+    off: { reflex: 0.6, defense: 0.4 },
+  },
+}
+
+const PREFIXES = [
+  'Rusted',
+  'Bone',
+  'Scaled',
+  'Horned',
+  'Padded',
+  'Jagged',
+  'Heavy',
+  'Swift',
+  'Grim',
+  'Savage',
+]
+
+const NOUNS: Record<EquipmentSlot, string[]> = {
+  weapon: ['Blade', 'Cleaver', 'Spear', 'Fang', 'Club', 'Axe'],
+  armor: ['Vest', 'Mail', 'Cuirass', 'Hide', 'Plate'],
+  helmet: ['Cap', 'Helm', 'Casque', 'Hood', 'Crown'],
+  boots: ['Boots', 'Greaves', 'Treads', 'Striders'],
+}
+
+let nextEquipmentId = 1
+
+export function equipmentBudget(level: number): number {
+  return EQUIPMENT_BASE_BUDGET + EQUIPMENT_BUDGET_PER_LEVEL * Math.max(0, level - 1)
+}
+
+/** Level 1-2 monsters wear one piece, then more as the run progresses. */
+export function equipmentPiecesForLevel(level: number): number {
+  return Math.min(EQUIPMENT_SLOTS.length, 1 + Math.floor(Math.max(0, level - 1) / 2))
+}
+
+function pick<T>(values: readonly T[], random: () => number): T {
+  return values[Math.floor(random() * values.length)] ?? values[0]!
+}
+
+function normalize(weights: Partial<Record<Stat, number>>): Map<Stat, number> {
+  const map = new Map<Stat, number>()
+  let total = 0
+  for (const stat of STAT_ORDER) {
+    total += weights[stat] ?? 0
+  }
+  if (total <= 0) {
+    return map
+  }
+  for (const stat of STAT_ORDER) {
+    const weight = weights[stat] ?? 0
+    if (weight > 0) {
+      map.set(stat, weight / total)
+    }
+  }
+  return map
+}
+
+function splitShares(profile: SlotProfile, coreWeight: number): Map<Stat, number> {
+  const shares = new Map<Stat, number>()
+  const core = normalize(profile.core)
+  const off = normalize(profile.off)
+
+  for (const [stat, weight] of core) {
+    shares.set(stat, (shares.get(stat) ?? 0) + weight * coreWeight)
+  }
+  for (const [stat, weight] of off) {
+    shares.set(stat, (shares.get(stat) ?? 0) + weight * (1 - coreWeight))
+  }
+  return shares
+}
+
+function rollBuffs(
+  profile: SlotProfile,
+  level: number,
+  coreWeight: number,
+  random: () => number,
+): Partial<StatBlock> {
+  const shares = splitShares(profile, coreWeight)
+  const jittered = new Map<Stat, number>()
+  let total = 0
+
+  for (const [stat, share] of shares) {
+    const jitter = share * (0.75 + random() * 0.5)
+    jittered.set(stat, jitter)
+    total += jitter
+  }
+
+  if (total <= 0) {
+    return {}
+  }
+
+  const budget = equipmentBudget(level)
+  const buffs: Partial<StatBlock> = {}
+  for (const [stat, jitter] of jittered) {
+    const points = (budget * jitter) / total
+    const value = stat === Stat.MaxHp ? Math.round(points * HP_PER_POINT) : Math.round(points)
+    const minimum = stat === Stat.MaxHp ? HP_PER_POINT : 1
+    buffs[stat] = Math.max(minimum, value)
+  }
+  return buffs
+}
+
+/**
+ * Rolls one piece of gear. `coreWeight` is the share of the stat budget that
+ * goes to the slot's signature stats (weapon attack, armor health/defense,
+ * helmet perception/reflex, boots speed); the rest is spread over secondary
+ * stats.
+ */
+export function createEquipment(
+  slot: EquipmentSlot,
+  level: number,
+  random: () => number = Math.random,
+  coreWeight: number = EQUIPMENT_CORE_WEIGHT,
+): Equipment {
+  const name = `${pick(PREFIXES, random)} ${pick(NOUNS[slot], random)}`
+  const id = `gear-${nextEquipmentId}`
+  nextEquipmentId += 1
+  return {
+    id,
+    slot,
+    name,
+    buffs: rollBuffs(SLOT_PROFILES[slot], level, coreWeight, random),
+  }
+}
+
+/** Rolls between one and four pieces covering distinct slots. */
+export function rollEquipment(
+  level: number,
+  random: () => number = Math.random,
+  count: number = equipmentPiecesForLevel(level),
+  coreWeight: number = EQUIPMENT_CORE_WEIGHT,
+): Equipment[] {
+  const slots = [...EQUIPMENT_SLOTS]
+  for (let index = slots.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1))
+    const current = slots[index]!
+    slots[index] = slots[swap]!
+    slots[swap] = current
+  }
+
+  const chosen = slots.slice(0, Math.max(0, Math.min(count, slots.length)))
+  return chosen.map((slot) => createEquipment(slot, level, random, coreWeight))
+}

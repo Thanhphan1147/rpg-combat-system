@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createCombat, getPrompt, step } from '@rpg/engine'
 import type { Intent } from '@rpg/engine'
-import { rollGoblin, wanderer } from '../src/characters'
-import { goblinEncounter, goblinArchetypes, rollEncounter } from '../src/encounter'
+import { rollMonster, wanderer } from '../src/characters'
+import { enemyArchetypes, goblinEncounter, rollEncounter } from '../src/encounter'
 
 function seeded(seed: number): () => number {
   let state = seed >>> 0
@@ -42,11 +42,19 @@ describe('goblin encounter', () => {
     expect(dodge.ending).toBeGreaterThan(guard.ending)
   })
 
-  it('ships multiple goblin archetypes with resolvable skills', () => {
-    expect(goblinArchetypes.map((archetype) => archetype.id)).toEqual(
-      expect.arrayContaining(['clubber', 'archer', 'berserker']),
+  it('ships goblin and humanoid archetypes with resolvable skills', () => {
+    expect(enemyArchetypes.map((archetype) => archetype.id)).toEqual(
+      expect.arrayContaining([
+        'clubber',
+        'archer',
+        'berserker',
+        'skeleton',
+        'lizardman',
+        'beastman',
+        'skeletonCaptain',
+      ]),
     )
-    for (const archetype of goblinArchetypes) {
+    for (const archetype of enemyArchetypes) {
       for (const skillId of archetype.skillIds) {
         expect(goblinEncounter.content.skills[skillId]).toBeDefined()
       }
@@ -58,7 +66,7 @@ describe('goblin encounter', () => {
     const min = Math.round(playerTotal * 0.85)
     const max = Math.round(playerTotal * 1.15)
     for (let seed = 1; seed <= 40; seed += 1) {
-      const goblin = rollGoblin(wanderer, seeded(seed))
+      const goblin = rollMonster(wanderer, seeded(seed))
       const goblinTotal = total(goblin.baseStats)
       expect(goblinTotal).toBeGreaterThanOrEqual(min)
       expect(goblinTotal).toBeLessThanOrEqual(max)
@@ -67,9 +75,15 @@ describe('goblin encounter', () => {
     }
   })
 
+  it('scales monsters with level', () => {
+    const low = rollMonster(wanderer, seeded(1), { level: 1 })
+    const high = rollMonster(wanderer, seeded(1), { level: 5 })
+    expect(total(high.baseStats)).toBeGreaterThan(total(low.baseStats))
+  })
+
   it('plays a rolled fight to completion', () => {
     const random = seeded(7)
-    const encounter = rollEncounter(random)
+    const encounter = rollEncounter({ random })
     let state = createCombat({
       content: encounter.content,
       rules: encounter.rules,

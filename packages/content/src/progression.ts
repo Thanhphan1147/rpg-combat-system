@@ -1,13 +1,15 @@
 import type { SkillId, StatBlock } from '@rpg/engine'
-import { Stat } from '@rpg/engine'
 import { wanderer } from './characters'
-import { BASE_PLAYER_SKILLS, goblinArchetypes } from './encounter'
-import type { GoblinArchetype, PlayerBuild } from './encounter'
+import { BASE_PLAYER_SKILLS, enemyArchetypes } from './encounter'
+import type { EnemyArchetype, PlayerBuild } from './encounter'
+import { EQUIPMENT_SLOTS } from './equipment'
+import type { Equipment, EquipmentSlot } from './equipment'
+import { STAT_ORDER, sumBuffs } from './stats'
 
 /**
- * A monster's essence: a fixed stat boost plus one of that monster's signature
- * skills, rolled when the monster is killed. Load one into a slot to benefit
- * from it; loading over another essence returns the old one to the reserve.
+ * A monster's essence: a huge fixed stat boost plus one of that monster's
+ * signature skills, rolled when the monster is killed. Essences are rare, so
+ * each one is a major power spike.
  */
 export interface Essence {
   id: string
@@ -24,23 +26,23 @@ export interface RunState {
   xp: number
   essences: Essence[]
   slots: (Essence | null)[]
+  items: Equipment[]
+  gear: Record<EquipmentSlot, Equipment | null>
   nextEssenceId: number
 }
-
-const STAT_ORDER: Stat[] = [
-  Stat.MaxHp,
-  Stat.Attack,
-  Stat.Defense,
-  Stat.Speed,
-  Stat.Reflex,
-  Stat.Perception,
-]
 
 /** XP needed to go from `level` to `level + 1`. */
 export const XP_PER_LEVEL = 100
 
+/** Chance that a kill also drops an essence. */
+export const ESSENCE_DROP_RATE = 0.1
+
 export function xpForNextLevel(level: number): number {
   return XP_PER_LEVEL * level
+}
+
+function emptyGear(): Record<EquipmentSlot, Equipment | null> {
+  return { weapon: null, armor: null, helmet: null, boots: null }
 }
 
 /** A fresh run starts at level 1 with a single, empty essence slot. */
@@ -50,52 +52,46 @@ export function createRun(): RunState {
     xp: 0,
     essences: [],
     slots: [null],
+    items: [],
+    gear: emptyGear(),
     nextEssenceId: 1,
   }
 }
 
-export function findArchetype(id: string): GoblinArchetype | undefined {
-  return goblinArchetypes.find((archetype) => archetype.id === id)
+export function findArchetype(id: string): EnemyArchetype | undefined {
+  return enemyArchetypes.find((archetype) => archetype.id === id)
 }
 
 /**
- * The skills an essence can roll: the monster's kit minus the moves every
+ * The skills an essence can roll: the enemy's kit minus the moves every
  * wanderer already knows. Falls back to the full kit if nothing is left.
  */
-export function essenceSkillPool(archetype: GoblinArchetype): SkillId[] {
+export function essenceSkillPool(archetype: EnemyArchetype): SkillId[] {
   const signature = archetype.skillIds.filter(
     (skillId) => !BASE_PLAYER_SKILLS.includes(skillId),
   )
   return signature.length > 0 ? signature : archetype.skillIds
 }
 
+export interface VictoryReward {
+  archetypeId: string
+  equipment: Equipment[]
+}
+
 /**
  * Awards XP for a kill, levels up as many times as the XP allows (each level
- * adds one empty essence slot), and drops one essence from the monster.
+ * adds one empty essence slot), takes the monster's gear, and rolls a 10%
+ * chance for an essence.
  */
 export function applyVictory(
   run: RunState,
-  archetypeId: string,
+  reward: VictoryReward,
   random: () => number = Math.random,
 ): RunState {
-  const archetype = findArchetype(archetypeId)
+  const archetype = findArchetype(reward.archetypeId)
+  const items = [...run.items, ...reward.equipment]
   if (archetype === undefined) {
-    return run
-  }
-
-  const pool = essenceSkillPool(archetype)
-  const skillId = pool[Math.floor(random() * pool.length)] ?? pool[0]
-  if (skillId === undefined) {
-    return run
-  }
-
-  const essence: Essence = {
-    id: `essence-${run.nextEssenceId}`,
-    name: archetype.essenceName,
-    sourceId: archetype.id,
-    sourceName: archetype.name,
-    buffs: { ...archetype.essenceBuffs },
-    skillId,
+    return { ...run, items }
   }
 
   let level = run.level
@@ -107,13 +103,28 @@ export function applyVictory(
     slots.push(null)
   }
 
-  return {
-    level,
-    xp,
-    essences: [...run.essences, essence],
-    slots,
-    nextEssenceId: run.nextEssenceId + 1,
+  let essences = run.essences
+  let nextEssenceId = run.nextEssenceId
+  if (random() < ESSENCE_DROP_RATE) {
+    const pool = essenceSkillPool(archetype)
+    const skillId = pool[Math.floor(random() * pool.length)] ?? pool[0]
+    if (skillId !== undefined) {
+      essences = [
+        ...essences,
+        {
+          id: `essence-${nextEssenceId}`,
+          name: archetype.essenceName,
+          sourceId: archetype.id,
+          sourceName: archetype.name,
+          buffs: { ...archetype.essenceBuffs },
+          skillId,
+        },
+      ]
+      nextEssenceId += 1
+    }
   }
+
+  return { ...run, level, xp, essences, slots, items, nextEssenceId }
 }
 
 /**
@@ -132,7 +143,6 @@ export function loadEssence(
   if (essence === undefined) {
     return run
   }
-
   const slots = [...run.slots]
   const previous = slots[slotIndex] ?? null
   slots[slotIndex] = essence
@@ -143,7 +153,7 @@ export function loadEssence(
   return { ...run, slots, essences }
 }
 
-/** Empties a slot, returning its essence to the reserve. */
+/** Empties an essence slot, returning its essence to the reserve. */
 export function unloadEssence(run: RunState, slotIndex: number): RunState {
   if (slotIndex < 0 || slotIndex >= run.slots.length) {
     return run
@@ -157,26 +167,52 @@ export function unloadEssence(run: RunState, slotIndex: number): RunState {
   return { ...run, slots, essences: [...run.essences, essence] }
 }
 
+/**
+ * Equips an item from the reserve. If the slot is occupied, the old item
+ * returns to the reserve.
+ */
+export function equipItem(run: RunState, itemId: string): RunState {
+  const item = run.items.find((candidate) => candidate.id === itemId)
+  if (item === undefined) {
+    return run
+  }
+  const previous = run.gear[item.slot]
+  const items = run.items.filter((candidate) => candidate.id !== itemId)
+  if (previous !== null) {
+    items.push(previous)
+  }
+  return { ...run, items, gear: { ...run.gear, [item.slot]: item } }
+}
+
+/** Empties an equipment slot, returning its item to the reserve. */
+export function unequipItem(run: RunState, slot: EquipmentSlot): RunState {
+  const item = run.gear[slot]
+  if (item === null) {
+    return run
+  }
+  return { ...run, items: [...run.items, item], gear: { ...run.gear, [slot]: null } }
+}
+
+export function equippedGear(run: RunState): Equipment[] {
+  return EQUIPMENT_SLOTS.map((slot) => run.gear[slot]).filter(
+    (item): item is Equipment => item !== null,
+  )
+}
+
 export function equippedEssences(run: RunState): Essence[] {
   return run.slots.filter((essence): essence is Essence => essence !== null)
 }
 
-/** Sum of every equipped essence's fixed stat boosts. */
+/** Sum of every equipped essence's and item's fixed stat boosts. */
 export function statBonuses(run: RunState): StatBlock {
-  const bonuses: StatBlock = {
-    speed: 0,
-    reflex: 0,
-    perception: 0,
-    maxHp: 0,
-    attack: 0,
-    defense: 0,
-  }
-  for (const essence of equippedEssences(run)) {
-    for (const stat of STAT_ORDER) {
-      bonuses[stat] += essence.buffs[stat] ?? 0
-    }
-  }
-  return bonuses
+  return sumBuffs([
+    ...equippedEssences(run).map((essence) => essence.buffs),
+    ...equippedGear(run).map((item) => item.buffs),
+  ])
+}
+
+export function equipmentBonuses(run: RunState): StatBlock {
+  return sumBuffs(equippedGear(run).map((item) => item.buffs))
 }
 
 export function playerStats(run: RunState): StatBlock {

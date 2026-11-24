@@ -25,28 +25,35 @@ const STAT_ORDER: Stat[] = [
   Stats.Perception,
 ]
 
-export interface RollGoblinOptions {
+export interface RollMonsterOptions {
   id?: string
   name?: string
   bias?: Partial<StatBlock>
+  power?: number
+  level?: number
 }
 
+/** Enemy stat totals grow by this fraction per run level. */
+export const LEVEL_STAT_GROWTH = 0.08
+
 /**
- * Rolls a goblin whose base stats total between 85% and 115% of the player's
- * total. The extra points are distributed randomly around the player's profile
- * (optionally biased toward an archetype), so each fight presents a different
- * threat.
+ * Rolls a monster whose base stats total between 85% and 115% of the player's
+ * total, multiplied by its archetype power and run level. The extra points are
+ * distributed randomly around the player's profile (optionally biased toward an
+ * archetype), so each fight presents a different threat.
  */
-export function rollGoblin(
+export function rollMonster(
   player: CharacterTemplate,
   random: () => number = Math.random,
-  options: RollGoblinOptions = {},
+  options: RollMonsterOptions = {},
 ): CharacterTemplate {
   const stats: StatBlock = { ...MINIMUMS }
   const bias = options.bias ?? {}
 
   const playerTotal = STAT_ORDER.reduce((sum, key) => sum + player.baseStats[key], 0)
-  const ratio = 0.85 + random() * 0.3
+  const level = Math.max(1, options.level ?? 1)
+  const levelFactor = 1 + LEVEL_STAT_GROWTH * (level - 1)
+  const ratio = (0.85 + random() * 0.3) * (options.power ?? 1) * levelFactor
   const target = Math.round(playerTotal * ratio)
 
   const weightFor = (key: Stat): number => player.baseStats[key] * (bias[key] ?? 1)

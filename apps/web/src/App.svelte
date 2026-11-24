@@ -20,6 +20,7 @@
     Intent,
     Prompt,
     SkillId,
+    StatBlock,
     TimelineSkill,
   } from '@rpg/engine'
   import { NARRATION, rollEncounter } from '@rpg/content'
@@ -27,11 +28,14 @@
     applyVictory,
     buildPlayer,
     createRun,
+    EQUIPMENT_SLOTS,
+    equipItem,
     loadEssence,
+    unequipItem,
     unloadEssence,
     xpForNextLevel,
   } from '@rpg/content'
-  import type { Encounter, Essence, RunState } from '@rpg/content'
+  import type { Encounter, EquipmentSlot, Essence, RunState } from '@rpg/content'
 
   const STAT_ROWS = [
     { key: Stat.MaxHp, label: 'max hp' },
@@ -46,12 +50,17 @@
   let run = $state<RunState>(initialRun)
   let awarded = $state(false)
   let selectedEssenceId = $state<string | null>(null)
+  let lastEssence = $state<Essence | null>(null)
 
   function beginFight(
     currentRun: RunState,
     excludeId?: string,
   ): { encounter: Encounter; combat: CombatState } {
-    const encounter = rollEncounter(undefined, excludeId, buildPlayer(currentRun))
+    const encounter = rollEncounter({
+      excludeId,
+      player: buildPlayer(currentRun),
+      level: currentRun.level,
+    })
     const combat = createCombat({
       content: encounter.content,
       rules: encounter.rules,
@@ -93,6 +102,9 @@
   })
   const narration = $derived.by(() => {
     const preamble = [encounter.narration.opening]
+    for (const item of encounter.loot) {
+      preamble.push(`The enemy wears ${item.name}: ${buffLine(item.buffs)}.`)
+    }
     const initiative = playerHasInitiative
       ? encounter.narration.playerInitiative
       : encounter.narration.enemyInitiative
@@ -129,7 +141,13 @@
       return
     }
     awarded = true
-    run = applyVictory(run, encounter.id)
+    const before = run.essences.length
+    const next = applyVictory(run, {
+      archetypeId: encounter.id,
+      equipment: encounter.loot,
+    })
+    lastEssence = next.essences.length > before ? (next.essences[before] ?? null) : null
+    run = next
   })
 
   function actorName(id: ActorId): string {
@@ -387,6 +405,7 @@
   function keepFighting(): void {
     awarded = false
     selectedEssenceId = null
+    lastEssence = null
     const next = beginFight(run, encounter.id)
     encounter = next.encounter
     combat = next.combat
@@ -397,6 +416,7 @@
     run = createRun()
     awarded = false
     selectedEssenceId = null
+    lastEssence = null
     const next = beginFight(run)
     encounter = next.encounter
     combat = next.combat
@@ -416,9 +436,17 @@
     run = unloadEssence(run, index)
   }
 
-  function buffLine(essence: Essence): string {
-    return STAT_ROWS.filter((row) => (essence.buffs[row.key] ?? 0) !== 0)
-      .map((row) => `+${essence.buffs[row.key] ?? 0} ${row.label}`)
+  function equipGear(itemId: string): void {
+    run = equipItem(run, itemId)
+  }
+
+  function unequipGear(slot: EquipmentSlot): void {
+    run = unequipItem(run, slot)
+  }
+
+  function buffLine(buffs: Partial<StatBlock>): string {
+    return STAT_ROWS.filter((row) => (buffs[row.key] ?? 0) !== 0)
+      .map((row) => `+${buffs[row.key] ?? 0} ${row.label}`)
       .join(' · ')
   }
 
@@ -521,11 +549,57 @@
             <span>victory</span>
             <span>level {run.level}</span>
           </div>
-          <p class="meta-line">
-            The goblin's essence remains. You have {run.slots.length} slot{run.slots.length === 1
-              ? ''
-              : 's'}.
-          </p>
+
+          {#if encounter.loot.length > 0}
+            <p class="meta-line">
+              Spoils: {encounter.loot.map((item) => item.name).join(', ')}.
+            </p>
+          {:else}
+            <p class="hint">Nothing worth stripping from this one.</p>
+          {/if}
+          {#if lastEssence}
+            <p class="meta-line">
+              An essence drops: {lastEssence.name} (grants {skillName(lastEssence.skillId)}).
+            </p>
+          {:else}
+            <p class="hint">No essence this time.</p>
+          {/if}
+
+          <div class="slots">
+            {#each EQUIPMENT_SLOTS as slot (slot)}
+              <button
+                class="slot"
+                class:filled={run.gear[slot] !== null}
+                onclick={() => unequipGear(slot)}
+              >
+                <span class="slot-label">{slot}</span>
+                {#if run.gear[slot]}
+                  <span class="slot-essence">{run.gear[slot].name}</span>
+                  <span class="slot-buffs">{buffLine(run.gear[slot].buffs)}</span>
+                {:else}
+                  <span class="slot-empty">empty</span>
+                {/if}
+              </button>
+            {/each}
+          </div>
+
+          <div class="inventory">
+            <div class="inventory-head">equipment</div>
+            {#if run.items.length === 0}
+              <p class="empty">No spare equipment.</p>
+            {:else}
+              {#each run.items as item (item.id)}
+                <button class="essence" onclick={() => equipGear(item.id)}>
+                  <span class="essence-name">
+                    {item.name}
+                    <span class="slot-tag">{item.slot}</span>
+                  </span>
+                  <span class="essence-buffs">{buffLine(item.buffs)}</span>
+                </button>
+              {/each}
+            {/if}
+            <p class="hint">Click equipment to equip it. Click a filled slot to remove it.</p>
+          </div>
 
           <div class="slots">
             {#each run.slots as slot, index (index)}
@@ -535,10 +609,10 @@
                 class:target={selectedEssenceId !== null}
                 onclick={() => onSlot(index)}
               >
-                <span class="slot-label">slot {index + 1}</span>
+                <span class="slot-label">essence slot {index + 1}</span>
                 {#if slot}
                   <span class="slot-essence">{slot.name}</span>
-                  <span class="slot-buffs">{buffLine(slot)}</span>
+                  <span class="slot-buffs">{buffLine(slot.buffs)}</span>
                   <span class="slot-skill">grants {skillName(slot.skillId)}</span>
                 {:else}
                   <span class="slot-empty">empty</span>
@@ -559,15 +633,15 @@
                   onclick={() => selectEssence(essence.id)}
                 >
                   <span class="essence-name">{essence.name}</span>
-                  <span class="essence-buffs">{buffLine(essence)}</span>
+                  <span class="essence-buffs">{buffLine(essence.buffs)}</span>
                   <span class="essence-skill">grants {skillName(essence.skillId)}</span>
                 </button>
               {/each}
             {/if}
             {#if selectedEssenceId !== null}
-              <p class="hint">Choose a slot to load it. Click it again to cancel.</p>
+              <p class="hint">Choose an essence slot to load it. Click it again to cancel.</p>
             {:else if run.slots.some((slot) => slot !== null)}
-              <p class="hint">Click a filled slot to unload it.</p>
+              <p class="hint">Click a filled essence slot to unload it.</p>
             {/if}
           </div>
 
