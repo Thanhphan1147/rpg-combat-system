@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import {
     canReactAt,
     CENTITICKS_PER_TICK,
@@ -75,6 +76,12 @@
   let combat = $state<CombatState>(opening.combat)
   let logElement = $state<HTMLElement>()
   let debug = $state(false)
+  let revealedCount = $state(0)
+  let fightSerial = $state(0)
+  let revealTimer: ReturnType<typeof setTimeout> | undefined
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   const prompt = $derived.by(() => getPrompt(combat))
   const ended = $derived.by(() => combat.outcome.status === 'ended')
@@ -133,8 +140,57 @@
     return { start, end: end <= start ? start + 1 : end }
   })
 
+  function revealNarration(target: number): void {
+    if (revealTimer !== undefined) {
+      clearTimeout(revealTimer)
+      revealTimer = undefined
+    }
+    const start = revealedCount
+    if (target <= start) {
+      return
+    }
+    if (reduceMotion) {
+      revealedCount = target
+      return
+    }
+
+    const pending = target - start
+    const duration = Math.min(600, Math.max(80, pending * 30))
+    const tickMs = 40
+    const ticks = Math.max(1, Math.ceil(duration / tickMs))
+    const step = Math.ceil(pending / ticks)
+
+    const tick = (): void => {
+      revealedCount = Math.min(target, revealedCount + step)
+      if (revealedCount < target) {
+        revealTimer = setTimeout(tick, tickMs)
+      } else {
+        revealTimer = undefined
+      }
+    }
+
+    tick()
+  }
+
+  $effect(() => {
+    fightSerial
+    const target = narration.length
+    untrack(() => {
+      if (target > revealedCount) {
+        revealNarration(target)
+      }
+    })
+    return () => {
+      if (revealTimer !== undefined) {
+        clearTimeout(revealTimer)
+        revealTimer = undefined
+      }
+    }
+  })
+
   $effect(() => {
     combat.log.length
+    revealedCount
     if (logElement) {
       logElement.scrollTop = logElement.scrollHeight
     }
@@ -410,6 +466,8 @@
     awarded = false
     selectedEssenceId = null
     lastEssence = null
+    fightSerial += 1
+    revealedCount = 0
     const next = beginFight(run, encounter.id)
     encounter = next.encounter
     combat = next.combat
@@ -421,6 +479,8 @@
     awarded = false
     selectedEssenceId = null
     lastEssence = null
+    fightSerial += 1
+    revealedCount = 0
     const next = beginFight(run)
     encounter = next.encounter
     combat = next.combat
@@ -540,9 +600,11 @@
   {/if}
 
   <section class="narration" bind:this={logElement}>
-    {#each narration as line}
-      <p class:system={line.startsWith('[')}>{line}</p>
-    {/each}
+    {#key fightSerial}
+      {#each narration.slice(0, revealedCount) as line, index (index)}
+        <p class:system={line.startsWith('[')}>{line}</p>
+      {/each}
+    {/key}
   </section>
 
   <section class="prompt">
