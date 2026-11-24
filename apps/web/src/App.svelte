@@ -191,8 +191,23 @@
 
   function chooseGoblinIntent(current: Prompt): Intent {
     if (current.kind === 'reaction') {
-      const guard = current.options.find((option) => option.kind === 'block')
-      return guard ? { kind: 'react', skillId: guard.skillId } : { kind: 'pass' }
+      const candidates = current.options
+        .filter(
+          (option) =>
+            option.kind === 'block' || option.kind === 'dodge' || option.kind === 'parry',
+        )
+        .map((option) => {
+          const definition = combat.content.skills[option.skillId]
+          const connectsAt =
+            combat.timeline.tick +
+            (definition?.startup ?? 0) +
+            (definition?.delivery ?? 0)
+          return { option, connectsAt }
+        })
+        .filter((candidate) => candidate.connectsAt <= current.incoming.connectAt)
+        .sort((a, b) => a.connectsAt - b.connectsAt)
+      const best = candidates[0]
+      return best ? { kind: 'react', skillId: best.option.skillId } : { kind: 'pass' }
     }
     const attacks = current.options.filter((option) => option.kind === 'attack')
     const pool = attacks.length > 0 ? attacks : current.options
