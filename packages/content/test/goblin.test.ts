@@ -27,6 +27,12 @@ describe('goblin encounter', () => {
       'goblin',
     ])
     expect(goblinEncounter.narration.opening).toContain('goblin')
+    expect(goblinEncounter.content.skills.basic?.cooldown).toBe(0)
+    expect(
+      goblinEncounter.combatants.every((combatant) =>
+        combatant.skillIds?.includes('basic'),
+      ),
+    ).toBe(true)
     expect(goblinEncounter.narration.playerInitiative.length).toBeGreaterThan(0)
     expect(goblinEncounter.narration.tooFastPlayer).toContain('too fast')
 
@@ -51,7 +57,8 @@ describe('goblin encounter', () => {
   })
 
   it('plays a rolled fight to completion', () => {
-    const encounter = rollGoblinEncounter(seeded(7))
+    const random = seeded(7)
+    const encounter = rollGoblinEncounter(random)
     let state = createCombat({
       content: encounter.content,
       rules: encounter.rules,
@@ -68,8 +75,10 @@ describe('goblin encounter', () => {
 
       let intent: Intent
       if (prompt.kind === 'action') {
-        const attack = prompt.options.find((option) => option.kind === 'attack')
-        intent = { kind: 'act', skillId: (attack ?? prompt.options[0]!).skillId }
+        const attacks = prompt.options.filter((option) => option.kind === 'attack')
+        const pool = attacks.length > 0 ? attacks : prompt.options
+        const choice = pool[Math.floor(random() * pool.length)]!
+        intent = { kind: 'act', skillId: choice.skillId }
       } else {
         const block = prompt.options.find((option) => option.kind === 'block')
         intent = block ? { kind: 'react', skillId: block.skillId } : { kind: 'pass' }

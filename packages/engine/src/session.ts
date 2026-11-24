@@ -100,6 +100,13 @@ function actionPrompt(state: CombatState, actorId: ActorId): ActionPrompt {
     if (skill === undefined) {
       continue
     }
+    if (
+      skill.kind === 'block' ||
+      skill.kind === 'dodge' ||
+      skill.kind === 'parry'
+    ) {
+      continue
+    }
     if ((actor?.runtime.cooldownEndsAt[skillId] ?? 0) > state.timeline.tick) {
       continue
     }

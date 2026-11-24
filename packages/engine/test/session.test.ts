@@ -100,6 +100,18 @@ describe('session prompts', () => {
     expect(prompt?.actorId).toBe('a')
   })
 
+  it('never offers block or dodge on an action prompt', () => {
+    const prompt = getPrompt(makeCombat())
+    expect(prompt?.kind).toBe('action')
+    if (prompt?.kind === 'action') {
+      expect(
+        prompt.options.some(
+          (option) => option.kind === 'block' || option.kind === 'dodge',
+        ),
+      ).toBe(false)
+    }
+  })
+
   it('does not prompt the defender while an attack is unresolved', () => {
     const state = startSkill(makeCombat(), 'a', 'jab', 'b')
     expect(getPrompt(state)).toBeNull()
