@@ -9,7 +9,7 @@ import {
   nextTransition,
 } from '../src/timeline'
 import type { SkillDef } from '../src/types/skill'
-import type { ContentBundle, Ruleset } from '../src/types/state'
+import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 
 const rules: Ruleset = {
   reflex: { base: 12, scale: 0.5, floor: 1 },
@@ -28,6 +28,7 @@ function makeSkill(overrides: Partial<SkillDef> & { id: SkillDef['id'] }): Skill
     ending: 2,
     cooldown: 4,
     hitstun: 3,
+    power: 4,
     armoredDuringDelivery: false,
     vagueDescription: 'A blur.',
     preciseDescription: 'A precise strike.',
@@ -67,6 +68,18 @@ function makeCombat() {
       { id: 'b', side: 'enemy', characterId: 'foe', skillIds: ['jab', 'heavy', 'guard'] },
     ],
   })
+}
+
+function advanceTo(state: CombatState, tick: number): CombatState {
+  let current = state
+  while (current.timeline.tick < tick && current.outcome.status === 'active') {
+    const transition = nextTransition(current)
+    if (transition === null) {
+      break
+    }
+    current = applyTransition(current, transition)
+  }
+  return current
 }
 
 describe('createCombat', () => {
@@ -150,7 +163,7 @@ describe('startSkill', () => {
 })
 
 describe('timeline arithmetic', () => {
-  it('computes connect then end transitions', () => {
+  it('resolves a hit at connect, then ends the skill', () => {
     const started = startSkill(makeCombat(), 'a', 'jab', 'b')
     const connect = nextTransition(started)
     expect(connect).toEqual({ kind: 'connect', tick: 5, instanceId: 'i1' })
@@ -158,6 +171,8 @@ describe('timeline arithmetic', () => {
     const atConnect = applyTransition(started, connect!)
     expect(atConnect.timeline.tick).toBe(5)
     expect(atConnect.timeline.active[0]?.resolved).toBe(true)
+    expect(atConnect.actors.b?.runtime.hp).toBe(71)
+    expect(atConnect.actors.b?.runtime.hitstunUntil).toBe(8)
     expect(started.timeline.active[0]?.resolved).toBe(false)
 
     const end = nextTransition(atConnect)
@@ -165,7 +180,8 @@ describe('timeline arithmetic', () => {
     const atEnd = applyTransition(atConnect, end!)
     expect(atEnd.timeline.tick).toBe(7)
     expect(atEnd.timeline.active).toEqual([])
-    expect(getFreeActors(atEnd)).toEqual(['a', 'b'])
+    expect(getFreeActors(atEnd)).toEqual(['a'])
+    expect(nextTransition(atEnd)).toEqual({ kind: 'unlock', tick: 8, actorId: 'b' })
   })
 
   it('orders same-tick transitions deterministically (connect before end)', () => {
@@ -188,13 +204,13 @@ describe('timeline arithmetic', () => {
     expect(advanceUntilDecision(state)).toBe(state)
   })
 
-  it('advanceUntilDecision settles to the next decision point when both act', () => {
+  it('advanceUntilDecision advances past hitstun to the next free actor', () => {
     let state = makeCombat()
     state = startSkill(state, 'a', 'jab', 'b')
     state = startSkill(state, 'b', 'jab', 'a')
 
     const settled = advanceUntilDecision(state)
-    expect(settled.timeline.tick).toBe(7)
-    expect(getFreeActors(settled)).toEqual(['a'])
+    expect(settled.timeline.tick).toBe(8)
+    expect(getFreeActors(settled)).toEqual(['a', 'b'])
   })
 })

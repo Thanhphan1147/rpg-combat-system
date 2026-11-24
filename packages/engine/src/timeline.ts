@@ -1,18 +1,38 @@
 import type { ActorId, InstanceId } from './types/ids'
 import type { CombatState, TimelineSkill } from './types/state'
+import { canReactAt, getReactionOptions } from './reactions'
+import { resolveConnect } from './resolution'
 
 /**
- * A scheduled point on the timeline. `connect` is when an active skill's
- * delivery ends (the hit resolves); `end` is when its ending finishes and it
- * leaves the timeline.
+ * A scheduled point on the timeline.
+ * - `reaction`: a reactor's reflex window opens for an incoming skill.
+ * - `connect`: an active skill's delivery ends (the hit resolves).
+ * - `end`: a skill's ending finishes and it leaves the timeline.
+ * - `unlock`: an actor's hitstun/stagger lockout ends.
  */
 export type Transition =
+  | { kind: 'reaction'; tick: number; actorId: ActorId; incomingInstanceId: InstanceId }
   | { kind: 'connect'; tick: number; instanceId: InstanceId }
   | { kind: 'end'; tick: number; instanceId: InstanceId }
+  | { kind: 'unlock'; tick: number; actorId: ActorId }
 
 const TRANSITION_PRIORITY: Record<Transition['kind'], number> = {
-  connect: 0,
-  end: 1,
+  reaction: 0,
+  connect: 1,
+  end: 2,
+  unlock: 3,
+}
+
+function transitionKey(transition: Transition): string {
+  switch (transition.kind) {
+    case 'reaction':
+      return `${transition.actorId}:${transition.incomingInstanceId}`
+    case 'unlock':
+      return transition.actorId
+    case 'connect':
+    case 'end':
+      return transition.instanceId
+  }
 }
 
 /**
@@ -28,8 +48,8 @@ export function skillConnectAt(state: CombatState, skill: TimelineSkill): number
 }
 
 /**
- * Deterministic ordering for transitions: earliest tick first, then kind
- * (connect before end), then instance id. Used by {@link nextTransition}.
+ * Deterministic ordering: earliest tick first, then kind (reaction → connect →
+ * end → unlock), then a per-kind key (instance id or actor id).
  */
 export function compareTransitions(a: Transition, b: Transition): number {
   if (a.tick !== b.tick) {
@@ -39,31 +59,78 @@ export function compareTransitions(a: Transition, b: Transition): number {
   if (priority !== 0) {
     return priority
   }
-  if (a.instanceId === b.instanceId) {
+  const aKey = transitionKey(a)
+  const bKey = transitionKey(b)
+  if (aKey === bKey) {
     return 0
   }
-  return a.instanceId < b.instanceId ? -1 : 1
+  return aKey < bKey ? -1 : 1
 }
 
 /**
- * Returns the earliest pending transition across all active skills, or `null`
- * when nothing is scheduled. This is the arithmetic core of the timeline: the
- * next thing that happens is the minimum of each skill's connect/end ticks.
+ * Returns the earliest pending transition, or `null` when nothing is scheduled.
+ * This is the arithmetic core: the next thing that happens is the minimum of
+ * each skill's connect/end, each reflex window, and each lockout expiry.
  */
 export function nextTransition(state: CombatState): Transition | null {
   let best: Transition | null = null
 
-  for (const skill of state.timeline.active) {
-    const candidates: Transition[] = []
-    if (!skill.resolved) {
-      candidates.push({ kind: 'connect', tick: skillConnectAt(state, skill), instanceId: skill.instanceId })
+  const consider = (candidate: Transition): void => {
+    if (best === null || compareTransitions(candidate, best) < 0) {
+      best = candidate
     }
-    candidates.push({ kind: 'end', tick: skill.endingEndsAt, instanceId: skill.instanceId })
+  }
 
-    for (const candidate of candidates) {
-      if (best === null || compareTransitions(candidate, best) < 0) {
-        best = candidate
+  for (const skill of state.timeline.active) {
+    if (!skill.resolved) {
+      consider({
+        kind: 'connect',
+        tick: skillConnectAt(state, skill),
+        instanceId: skill.instanceId,
+      })
+    }
+    consider({ kind: 'end', tick: skill.endingEndsAt, instanceId: skill.instanceId })
+
+    if (skill.resolved || skill.reactingToInstanceId !== null) {
+      continue
+    }
+    const skillDefinition = state.content.skills[skill.skillId]
+    if (skillDefinition?.kind !== 'attack') {
+      continue
+    }
+    const connectAt = skill.startedAt + skillDefinition.startup + skillDefinition.delivery
+    for (const actorId of state.roster) {
+      if (actorId === skill.actorId) {
+        continue
       }
+      const reactAt = canReactAt(state, actorId, skill)
+      if (reactAt <= state.timeline.tick || reactAt >= connectAt) {
+        continue
+      }
+      const alreadyReacting = state.timeline.active.some(
+        (active) =>
+          active.actorId === actorId &&
+          active.reactingToInstanceId === skill.instanceId,
+      )
+      if (!alreadyReacting) {
+        consider({
+          kind: 'reaction',
+          tick: reactAt,
+          actorId,
+          incomingInstanceId: skill.instanceId,
+        })
+      }
+    }
+  }
+
+  for (const actorId of state.roster) {
+    const actor = state.actors[actorId]
+    if (actor === undefined) {
+      continue
+    }
+    const lockedUntil = Math.max(actor.runtime.hitstunUntil, actor.runtime.staggeredUntil)
+    if (lockedUntil > state.timeline.tick) {
+      consider({ kind: 'unlock', tick: lockedUntil, actorId })
     }
   }
 
@@ -71,32 +138,45 @@ export function nextTransition(state: CombatState): Transition | null {
 }
 
 /**
- * Applies a single transition to a copy of the state: moves the clock to the
- * transition's tick, then either marks the skill resolved (connect) or removes
- * it from the timeline (end). The input state is never mutated.
+ * Applies a single transition to a copy of the state. `connect` resolves the
+ * hit/reaction, `end` removes the skill, and `reaction`/`unlock` just advance the
+ * clock. The input state is never mutated.
  */
 export function applyTransition(state: CombatState, transition: Transition): CombatState {
   const tick = Math.max(state.timeline.tick, transition.tick)
-  const active =
-    transition.kind === 'connect'
-      ? state.timeline.active.map((skill) =>
+  const advanced: CombatState = { ...state, timeline: { ...state.timeline, tick } }
+
+  if (transition.kind === 'reaction' || transition.kind === 'unlock') {
+    return advanced
+  }
+
+  if (transition.kind === 'connect') {
+    const resolved = resolveConnect(advanced, transition.instanceId)
+    const stillActive = resolved.timeline.active.some(
+      (skill) => skill.instanceId === transition.instanceId,
+    )
+    const active = stillActive
+      ? resolved.timeline.active.map((skill) =>
           skill.instanceId === transition.instanceId ? { ...skill, resolved: true } : skill,
         )
-      : state.timeline.active.filter((skill) => skill.instanceId !== transition.instanceId)
+      : resolved.timeline.active
+    return { ...resolved, timeline: { ...resolved.timeline, active } }
+  }
 
   return {
-    ...state,
+    ...advanced,
     timeline: {
-      ...state.timeline,
-      tick,
-      active,
+      ...advanced.timeline,
+      active: advanced.timeline.active.filter(
+        (skill) => skill.instanceId !== transition.instanceId,
+      ),
     },
   }
 }
 
 /**
- * Actors that may be prompted right now: alive, not committed to an active
- * skill, and past their hitstun/stagger lockout. Returned in roster order.
+ * Actors that may be prompted to act right now: alive, not committed to an
+ * active skill, and past their hitstun/stagger lockout. Returned in roster order.
  */
 export function getFreeActors(state: CombatState): ActorId[] {
   if (state.outcome.status === 'ended') {
@@ -118,14 +198,45 @@ export function getFreeActors(state: CombatState): ActorId[] {
 }
 
 /**
- * Whether the engine is waiting on input: either a pending reaction window or an
- * actor that is free to act.
+ * Whether any actor currently has a usable reaction to an unresolved attack.
+ */
+export function hasReactionOpportunity(state: CombatState): boolean {
+  if (state.outcome.status === 'ended') {
+    return false
+  }
+  for (const skill of state.timeline.active) {
+    if (skill.resolved || skill.reactingToInstanceId !== null) {
+      continue
+    }
+    const skillDefinition = state.content.skills[skill.skillId]
+    if (skillDefinition?.kind !== 'attack') {
+      continue
+    }
+    for (const actorId of state.roster) {
+      if (actorId === skill.actorId) {
+        continue
+      }
+      if (getReactionOptions(state, actorId, skill).length > 0) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * Whether the engine is waiting on input: a reaction window is open, an actor is
+ * free to act, or a pending decision exists.
  */
 export function isDecisionPoint(state: CombatState): boolean {
   if (state.outcome.status === 'ended') {
     return false
   }
-  return state.pending !== null || getFreeActors(state).length > 0
+  return (
+    state.pending !== null ||
+    getFreeActors(state).length > 0 ||
+    hasReactionOpportunity(state)
+  )
 }
 
 /**
