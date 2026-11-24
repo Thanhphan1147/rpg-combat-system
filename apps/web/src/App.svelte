@@ -158,14 +158,9 @@
           : `Your ${skillName(event.skillId)} bites into the ${actorName(event.targetActorId)}.`
       }
       case 'blocked':
-        if (event.complete) {
-          return event.targetActorId === PLAYER
-            ? `You turn the ${skillName(event.skillId)} aside on your guard.`
-            : `The ${actorName(event.targetActorId)} blocks your ${skillName(event.skillId)} cleanly.`
-        }
         return event.targetActorId === PLAYER
-          ? `Your guard comes a beat late.\n[ you have taken ${event.damage} damage ]`
-          : `The ${actorName(event.targetActorId)}'s guard is late.`
+          ? `You turn the ${skillName(event.skillId)} aside on your guard.`
+          : `The ${actorName(event.targetActorId)} blocks your ${skillName(event.skillId)} cleanly.`
       case 'dodged':
         return event.targetActorId === PLAYER
           ? `You slip aside from the ${skillName(event.skillId)}.`

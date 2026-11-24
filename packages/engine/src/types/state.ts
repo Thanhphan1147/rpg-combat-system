@@ -53,7 +53,6 @@ export interface Ruleset {
   reflex: { base: number; scale: number; floor: number }
   perception: { base: number; scale: number; floor: number }
   interruptDuringStartup: { damageMultiplier: number; stagger: number }
-  block: { incompleteMitigation: number }
 }
 
 export interface CombatState {

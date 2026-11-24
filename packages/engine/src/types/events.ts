@@ -14,14 +14,7 @@ export type CombatEvent =
       incomingInstanceId: InstanceId
     }
   | { kind: 'hit'; actorId: ActorId; targetActorId: ActorId; skillId: SkillId; damage: number }
-  | {
-      kind: 'blocked'
-      actorId: ActorId
-      targetActorId: ActorId
-      skillId: SkillId
-      damage: number
-      complete: boolean
-    }
+  | { kind: 'blocked'; actorId: ActorId; targetActorId: ActorId; skillId: SkillId }
   | { kind: 'dodged'; actorId: ActorId; targetActorId: ActorId; skillId: SkillId }
   | { kind: 'parried'; actorId: ActorId; targetActorId: ActorId; skillId: SkillId }
   | {

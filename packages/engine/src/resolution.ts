@@ -165,8 +165,6 @@ function resolveAttack(
               actorId: attack.actorId,
               targetActorId: targetId,
               skillId: attack.skillId,
-              damage: 0,
-              complete: true,
             }
     return emit(cancelOthers(state, attack.instanceId, attack.actorId, attack.skillId), event)
   }
@@ -187,13 +185,6 @@ function resolveAttack(
     )
   }
 
-  const lateBlock = reactions.find(
-    (reaction) => skillDefinitionOf(state, reaction.skillId)?.kind === 'block',
-  )
-  if (lateBlock !== undefined) {
-    damage = Math.max(1, Math.ceil(damage * (1 - state.rules.block.incompleteMitigation)))
-  }
-
   let next = cancelOthers(state, attack.instanceId, attack.actorId, attack.skillId)
   next = applyDamage(next, targetId, damage)
   next = lockUntil(next, targetId, 'hitstunUntil', at + attackDefinition.hitstun)
@@ -202,23 +193,13 @@ function resolveAttack(
     next = emit(next, { kind: 'staggered', actorId: targetId })
   }
 
-  const event: CombatEvent =
-    lateBlock !== undefined
-      ? {
-          kind: 'blocked',
-          actorId: attack.actorId,
-          targetActorId: targetId,
-          skillId: attack.skillId,
-          damage,
-          complete: false,
-        }
-      : {
-          kind: 'hit',
-          actorId: attack.actorId,
-          targetActorId: targetId,
-          skillId: attack.skillId,
-          damage,
-        }
+  const event: CombatEvent = {
+    kind: 'hit',
+    actorId: attack.actorId,
+    targetActorId: targetId,
+    skillId: attack.skillId,
+    damage,
+  }
   return withEnd(state, emit(next, event))
 }
 

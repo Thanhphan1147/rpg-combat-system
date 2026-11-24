@@ -26,10 +26,14 @@ describe('goblin encounter', () => {
       'wanderer',
       'goblin',
     ])
-    expect(goblinEncounter.rules.block.incompleteMitigation).toBeGreaterThan(0)
     expect(goblinEncounter.narration.opening).toContain('goblin')
     expect(goblinEncounter.narration.playerInitiative.length).toBeGreaterThan(0)
     expect(goblinEncounter.narration.tooFastPlayer).toContain('too fast')
+
+    const guard = goblinEncounter.content.skills.guard!
+    const dodge = goblinEncounter.content.skills.dodge!
+    expect(dodge.startup + dodge.delivery).toBeLessThan(guard.startup + guard.delivery)
+    expect(dodge.ending).toBeGreaterThan(guard.ending)
   })
 
   it('rolls the goblin at 80% of the player total', () => {
