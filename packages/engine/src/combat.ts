@@ -7,6 +7,7 @@ import { emit } from './log'
 import { getEffectiveStat } from './stats'
 import { reactionDelay } from './reflex'
 import { scalePhases } from './scaling'
+import { cooldownMapAfter } from './cooldown'
 
 /**
  * Configuration for one actor entering combat. `skillIds` is the actor's current
@@ -134,10 +135,12 @@ export function startSkill(
         ...actor,
         runtime: {
           ...actor.runtime,
-          cooldownEndsAt: {
-            ...actor.runtime.cooldownEndsAt,
-            [skillId]: tick + skill.cooldown,
-          },
+          cooldownEndsAt: cooldownMapAfter(
+            state,
+            actor.runtime.cooldownEndsAt,
+            skill,
+            tick + skill.cooldown,
+          ),
         },
       },
     },

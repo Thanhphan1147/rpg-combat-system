@@ -68,6 +68,7 @@ function makeContent(): ContentBundle {
         cooldown: 0,
         hitstun: 0,
         power: 0,
+        cooldownGroup: 'defence',
       }),
       dodge: makeSkill({
         id: 'dodge',
@@ -79,6 +80,7 @@ function makeContent(): ContentBundle {
         cooldown: 6,
         hitstun: 0,
         power: 0,
+        cooldownGroup: 'defence',
       }),
       quick: makeSkill({
         id: 'quick',
@@ -185,6 +187,17 @@ describe('reaction windows', () => {
       state.timeline.active.some((skill) => skill.reactingToInstanceId === instanceId),
     ).toBe(true)
     expect(() => startReaction(state, 'b', 'dodge', instanceId)).toThrow(/Cannot react/)
+  })
+
+  it('puts the whole defence group on cooldown', () => {
+    let state = startSkill(makeCombat(), 'a', 'slow', 'b')
+    const instanceId = state.timeline.active[0]!.instanceId
+    state = advanceTo(state, 8)
+    state = startReaction(state, 'b', 'dodge', instanceId)
+
+    const ready = state.actors.b?.runtime.cooldownEndsAt.dodge
+    expect(ready).toBeGreaterThan(8)
+    expect(state.actors.b?.runtime.cooldownEndsAt.guard).toBe(ready)
   })
 })
 

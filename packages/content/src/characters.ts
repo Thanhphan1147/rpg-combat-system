@@ -39,20 +39,27 @@ export function rollGoblin(
   const playerTotal = STAT_ORDER.reduce((sum, key) => sum + player.baseStats[key], 0)
   const ratio = 0.85 + random() * 0.3
   const target = Math.round(playerTotal * ratio)
-  let remaining = target - STAT_ORDER.reduce((sum, key) => sum + stats[key], 0)
 
-  const pool: Stat[] = []
   for (const key of STAT_ORDER) {
-    const weight = Math.max(1, player.baseStats[key])
-    for (let i = 0; i < weight; i += 1) {
-      pool.push(key)
-    }
+    const jitter = 0.9 + random() * 0.2
+    stats[key] = Math.max(
+      MINIMUMS[key],
+      Math.round(player.baseStats[key] * ratio * jitter),
+    )
   }
 
-  while (remaining > 0 && pool.length > 0) {
-    const key = pool[Math.floor(random() * pool.length)]!
-    stats[key] += 1
-    remaining -= 1
+  const adjustable = (): Stat => STAT_ORDER[Math.floor(random() * STAT_ORDER.length)]!
+  let diff = target - STAT_ORDER.reduce((sum, key) => sum + stats[key], 0)
+  while (diff > 0) {
+    stats[adjustable()] += 1
+    diff -= 1
+  }
+  while (diff < 0) {
+    const key = adjustable()
+    if (stats[key] > MINIMUMS[key]) {
+      stats[key] -= 1
+      diff += 1
+    }
   }
 
   return { id: 'goblin', name: 'Goblin', baseStats: stats }

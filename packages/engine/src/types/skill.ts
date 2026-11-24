@@ -15,6 +15,7 @@ export interface SkillDef {
   delivery: number
   ending: number
   cooldown: number
+  cooldownGroup?: string
   hitstun: number
   power: number
   vagueDescription: string

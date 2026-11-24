@@ -7,6 +7,7 @@ import { getPerceptionView } from './perception'
 import { reactionAt } from './reflex'
 import { emit } from './log'
 import { scalePhases } from './scaling'
+import { cooldownMapAfter } from './cooldown'
 
 /**
  * Earliest tick at which an actor may begin reacting to an incoming skill: the
@@ -187,10 +188,12 @@ export function startReaction(
           ...reactor,
           runtime: {
             ...reactor.runtime,
-            cooldownEndsAt: {
-              ...reactor.runtime.cooldownEndsAt,
-              [skillId]: tick + skill.cooldown,
-            },
+            cooldownEndsAt: cooldownMapAfter(
+              state,
+              reactor.runtime.cooldownEndsAt,
+              skill,
+              tick + skill.cooldown,
+            ),
           },
         },
       },
