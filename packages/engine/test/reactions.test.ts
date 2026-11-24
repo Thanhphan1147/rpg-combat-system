@@ -29,7 +29,6 @@ function makeSkill(overrides: Partial<SkillDef> & { id: SkillDef['id'] }): Skill
     cooldown: 4,
     hitstun: 3,
     power: 4,
-    armoredDuringDelivery: false,
     vagueDescription: 'vague',
     preciseDescription: 'precise',
     hitFlavor: '',
@@ -49,7 +48,6 @@ function makeContent(): ContentBundle {
         cooldown: 12,
         hitstun: 5,
         power: 10,
-        armoredDuringDelivery: true,
       }),
       slow: makeSkill({
         id: 'slow',
@@ -235,7 +233,7 @@ describe('resolution', () => {
     expect(state.timeline.active.some((skill) => skill.skillId === 'slow')).toBe(false)
   })
 
-  it('does not interrupt a skill armored during delivery (trade)', () => {
+  it('a faster reaction cancels a slower attack during delivery', () => {
     let state = startSkill(makeCombat(), 'a', 'heavy', 'b')
     const instanceId = state.timeline.active[0]!.instanceId
     state = advanceTo(state, 8)
@@ -243,6 +241,7 @@ describe('resolution', () => {
     state = advanceTo(state, 10)
 
     expect(state.actors.a?.runtime.hp).toBe(91)
-    expect(state.actors.b?.runtime.hp).toBe(74)
+    expect(state.actors.b?.runtime.hp).toBe(90)
+    expect(state.timeline.active.some((skill) => skill.skillId === 'heavy')).toBe(false)
   })
 })

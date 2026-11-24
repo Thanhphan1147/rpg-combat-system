@@ -23,7 +23,6 @@ function makeSkill(overrides: Partial<SkillDef> & { id: SkillDef['id'] }): Skill
     cooldown: 4,
     hitstun: 3,
     power: 4,
-    armoredDuringDelivery: false,
     vagueDescription: 'vague',
     preciseDescription: 'precise',
     hitFlavor: '',

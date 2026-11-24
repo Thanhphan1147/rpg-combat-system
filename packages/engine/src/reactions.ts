@@ -33,6 +33,17 @@ export function canReact(
   if (reactorId === incoming.actorId) {
     return false
   }
+  const actor = state.actors[reactorId]
+  if (actor === undefined || actor.runtime.hp <= 0) {
+    return false
+  }
+  if (state.timeline.active.some((active) => active.actorId === reactorId)) {
+    return false
+  }
+  const lockedUntil = Math.max(actor.runtime.hitstunUntil, actor.runtime.staggeredUntil)
+  if (state.timeline.tick < lockedUntil) {
+    return false
+  }
   if (incoming.resolved) {
     return false
   }

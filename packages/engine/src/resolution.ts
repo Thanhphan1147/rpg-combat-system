@@ -89,33 +89,34 @@ function removeInstance(state: CombatState, instanceId: InstanceId): CombatState
   }
 }
 
-interface Interruption {
-  skill: TimelineSkill
-  inStartup: boolean
-}
-
-/** In-flight attacks from the target that this hit can cancel. */
-function findInterruptions(
+/**
+ * Ends the exchange: cancels every other unresolved skill. Attacks that are
+ * cancelled are narrated as interrupted; defensive reactions simply lapse.
+ */
+function cancelOthers(
   state: CombatState,
-  targetId: ActorId,
-  at: number,
-): Interruption[] {
-  const interruptions: Interruption[] = []
-  for (const candidate of state.timeline.active) {
-    if (candidate.actorId !== targetId || candidate.resolved) {
+  keepInstanceId: InstanceId,
+  byActorId: ActorId,
+  bySkillId: string,
+): CombatState {
+  let next = state
+  for (const other of state.timeline.active) {
+    if (other.instanceId === keepInstanceId || other.resolved) {
       continue
     }
-    const definition = skillDefinitionOf(state, candidate.skillId)
-    if (definition === undefined || definition.kind !== 'attack') {
-      continue
+    next = removeInstance(next, other.instanceId)
+    const definition = skillDefinitionOf(next, other.skillId)
+    if (definition?.kind === 'attack') {
+      next = emit(next, {
+        kind: 'interrupted',
+        actorId: other.actorId,
+        skillId: other.skillId,
+        byActorId,
+        bySkillId,
+      })
     }
-    const inStartup = at < candidate.startedAt + definition.startup
-    if (!inStartup && definition.armoredDuringDelivery) {
-      continue
-    }
-    interruptions.push({ skill: candidate, inStartup })
   }
-  return interruptions
+  return next
 }
 
 /** Resolves an attack landing on its target. */
@@ -167,11 +168,16 @@ function resolveAttack(
               damage: 0,
               complete: true,
             }
-    return emit(state, event)
+    return emit(cancelOthers(state, attack.instanceId, attack.actorId, attack.skillId), event)
   }
 
-  const interruptions = findInterruptions(state, targetId, at)
-  const cleanInterrupt = interruptions.some((entry) => entry.inStartup)
+  const others = state.timeline.active.filter(
+    (active) => active.instanceId !== attack.instanceId && !active.resolved,
+  )
+  const cleanInterrupt = others.some((other) => {
+    const definition = skillDefinitionOf(state, other.skillId)
+    return definition?.kind === 'attack' && at < other.startedAt + definition.startup
+  })
 
   let damage = damageFor(state, attack.actorId, targetId, attackDefinition.power)
   if (cleanInterrupt) {
@@ -188,18 +194,7 @@ function resolveAttack(
     damage = Math.max(1, Math.ceil(damage * (1 - state.rules.block.incompleteMitigation)))
   }
 
-  let next = state
-  for (const interruption of interruptions) {
-    next = removeInstance(next, interruption.skill.instanceId)
-    next = emit(next, {
-      kind: 'interrupted',
-      actorId: targetId,
-      skillId: interruption.skill.skillId,
-      byActorId: attack.actorId,
-      bySkillId: attack.skillId,
-    })
-  }
-
+  let next = cancelOthers(state, attack.instanceId, attack.actorId, attack.skillId)
   next = applyDamage(next, targetId, damage)
   next = lockUntil(next, targetId, 'hitstunUntil', at + attackDefinition.hitstun)
   if (cleanInterrupt) {
@@ -228,10 +223,10 @@ function resolveAttack(
 }
 
 /**
- * Resolves the effects of a skill reaching its connect tick. Attacks deal damage
- * and interrupt any slower in-flight attack; block/dodge/parry have no
- * connect-time effect of their own (they are evaluated when the incoming attack
- * lands). Returns a new state with narration events appended.
+ * Resolves the effects of a skill reaching its connect tick. An attack delivers
+ * and ends the exchange, cancelling every other in-flight skill; defensive
+ * reactions have no connect-time effect of their own (they are evaluated when
+ * the incoming attack lands). Returns a new state with narration appended.
  */
 export function resolveConnect(state: CombatState, instanceId: InstanceId): CombatState {
   const instance = state.timeline.active.find((active) => active.instanceId === instanceId)
