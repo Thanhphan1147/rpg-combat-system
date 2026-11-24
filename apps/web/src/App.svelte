@@ -30,6 +30,7 @@
     createRun,
     EQUIPMENT_SLOTS,
     equipItem,
+    fillTemplate,
     loadEssence,
     unequipItem,
     unloadEssence,
@@ -102,8 +103,11 @@
   })
   const narration = $derived.by(() => {
     const preamble = [encounter.narration.opening]
-    for (const item of encounter.loot) {
-      preamble.push(`The enemy wears ${item.name}. ${item.flavor}`)
+    if (encounter.narration.gear.length > 0) {
+      preamble.push(encounter.narration.gear)
+    }
+    if (encounter.narration.difficultFight.length > 0) {
+      preamble.push(encounter.narration.difficultFight)
     }
     const initiative = playerHasInitiative
       ? encounter.narration.playerInitiative
@@ -180,7 +184,7 @@
   }
 
   function fill(template: string, values: Record<string, string>): string {
-    return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => values[key] ?? '')
+    return fillTemplate(template, values)
   }
 
   function describeIncoming(attackerId: ActorId, skillId: SkillId): string {
@@ -459,7 +463,7 @@
     const identified = current.incoming.identified
     const description = identified
       ? (combat.content.skills[skill]?.preciseDescription ?? '')
-      : (combat.content.skills[skill]?.vagueDescription ?? 'Something is coming.')
+      : (combat.content.skills[skill]?.vagueDescription ?? NARRATION.unknownIncoming)
     return fill(identified ? NARRATION.identifiedPrefix : NARRATION.vaguePrefix, {
       description,
     })
@@ -552,17 +556,22 @@
 
           {#if encounter.loot.length > 0}
             <p class="meta-line">
-              Spoils: {encounter.loot.map((item) => item.name).join(', ')}.
+              {fill(NARRATION.spoils, {
+                items: encounter.loot.map((item) => item.name).join(', '),
+              })}
             </p>
           {:else}
-            <p class="hint">Nothing worth stripping from this one.</p>
+            <p class="hint">{NARRATION.noSpoils}</p>
           {/if}
           {#if lastEssence}
             <p class="meta-line">
-              An essence drops: {lastEssence.name} (grants {skillName(lastEssence.skillId)}).
+              {fill(NARRATION.essenceDropped, {
+                essence: lastEssence.name,
+                skill: skillName(lastEssence.skillId),
+              })}
             </p>
           {:else}
-            <p class="hint">No essence this time.</p>
+            <p class="hint">{NARRATION.noEssence}</p>
           {/if}
 
           <div class="slots">
@@ -656,7 +665,7 @@
             <span>run over</span>
             <span>level {run.level}</span>
           </div>
-          <p class="meta-line">The wanderer falls. The run ends here.</p>
+          <p class="meta-line">{NARRATION.runOver}</p>
           <div class="meta-actions">
             <button onclick={newRun}>New run</button>
           </div>

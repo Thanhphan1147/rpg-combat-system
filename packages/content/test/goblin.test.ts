@@ -75,6 +75,26 @@ describe('goblin encounter', () => {
     }
   })
 
+  it('describes worn gear by flavor without naming the items', () => {
+    const encounter = rollEncounter({ random: seeded(11), level: 3 })
+    expect(encounter.loot.length).toBeGreaterThanOrEqual(1)
+    expect(encounter.narration.gear.length).toBeGreaterThan(0)
+    for (const item of encounter.loot) {
+      expect(encounter.narration.gear).not.toContain(item.name)
+      expect(encounter.narration.gear).toContain(item.flavor)
+    }
+  })
+
+  it('warns when the enemy is at least 30% stronger', () => {
+    const easy = rollEncounter({ random: seeded(1), level: 1 })
+    expect(easy.narration.difficultFight).toBe('')
+
+    for (let seed = 1; seed <= 20; seed += 1) {
+      const hard = rollEncounter({ random: seeded(seed), level: 8 })
+      expect(hard.narration.difficultFight).toContain('difficult')
+    }
+  })
+
   it('scales monsters with level', () => {
     const low = rollMonster(wanderer, seeded(1), { level: 1 })
     const high = rollMonster(wanderer, seeded(1), { level: 5 })

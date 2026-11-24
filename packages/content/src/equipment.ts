@@ -104,9 +104,20 @@ export function equipmentBudget(level: number): number {
   return EQUIPMENT_BASE_BUDGET + EQUIPMENT_BUDGET_PER_LEVEL * Math.max(0, level - 1)
 }
 
-/** Level 1-2 monsters wear one piece, then more as the run progresses. */
-export function equipmentPiecesForLevel(level: number): number {
-  return Math.min(EQUIPMENT_SLOTS.length, 1 + Math.floor(Math.max(0, level - 1) / 2))
+/** Chance weights for 1, 2, 3, and 4 worn pieces. */
+const EQUIPMENT_PIECE_WEIGHTS = [60, 25, 10, 5]
+
+/** Rolls 1-4 worn pieces; each extra piece is rarer than the last. */
+export function rollEquipmentCount(random: () => number = Math.random): number {
+  const roll = random() * 100
+  let cumulative = 0
+  for (let index = 0; index < EQUIPMENT_PIECE_WEIGHTS.length; index += 1) {
+    cumulative += EQUIPMENT_PIECE_WEIGHTS[index]!
+    if (roll < cumulative) {
+      return index + 1
+    }
+  }
+  return EQUIPMENT_PIECE_WEIGHTS.length
 }
 
 function pick<T>(values: readonly T[], random: () => number): T {
@@ -215,7 +226,7 @@ export function createEquipment(
 export function rollEquipment(
   level: number,
   random: () => number = Math.random,
-  count: number = equipmentPiecesForLevel(level),
+  count: number = rollEquipmentCount(random),
   coreWeight: number = EQUIPMENT_CORE_WEIGHT,
 ): Equipment[] {
   const slots = [...EQUIPMENT_SLOTS]

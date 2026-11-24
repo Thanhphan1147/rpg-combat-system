@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   EQUIPMENT_SLOTS,
   createEquipment,
-  equipmentPiecesForLevel,
   rollEquipment,
+  rollEquipmentCount,
 } from '../src/equipment'
 import type { Equipment, EquipmentSlot } from '../src/equipment'
 import { HP_PER_POINT, statScore } from '../src/stats'
@@ -84,17 +84,20 @@ describe('equipment generation', () => {
     expect(Math.abs(low - 0.6)).toBeLessThan(0.12)
   })
 
-  it('wears more pieces as levels rise', () => {
-    expect(equipmentPiecesForLevel(1)).toBe(1)
-    expect(equipmentPiecesForLevel(2)).toBe(1)
-    expect(equipmentPiecesForLevel(3)).toBe(2)
-    expect(equipmentPiecesForLevel(5)).toBe(3)
-    expect(equipmentPiecesForLevel(7)).toBe(4)
-    expect(equipmentPiecesForLevel(12)).toBe(4)
+  it('makes each extra worn piece rarer', () => {
+    const random = seeded(42)
+    const counts = [0, 0, 0, 0, 0]
+    for (let sample = 0; sample < 400; sample += 1) {
+      counts[rollEquipmentCount(random)]! += 1
+    }
+    expect(counts[0]).toBe(0)
+    expect(counts[1] ?? 0).toBeGreaterThan(counts[2] ?? 0)
+    expect(counts[2] ?? 0).toBeGreaterThan(counts[3] ?? 0)
+    expect(counts[3] ?? 0).toBeGreaterThan(counts[4] ?? 0)
   })
 
   it('rolls distinct slots for a full set', () => {
-    const loot = rollEquipment(9, seeded(3))
+    const loot = rollEquipment(9, seeded(3), 4)
     expect(loot).toHaveLength(4)
     expect(new Set(loot.map((item) => item.slot)).size).toBe(4)
     expect(new Set(loot.map((item) => item.id)).size).toBe(4)

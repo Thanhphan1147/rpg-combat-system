@@ -7,19 +7,25 @@ import type {
   StatBlock,
 } from '@rpg/engine'
 import { characters, rollMonster, wanderer } from './characters'
-import { equipmentPiecesForLevel, rollEquipment } from './equipment'
+import { rollEquipment, rollEquipmentCount } from './equipment'
 import type { Equipment } from './equipment'
+import { fillTemplate, NARRATION } from './narration'
 import { standardRules } from './rules'
 import { skills } from './skills'
-import { addBuffs, STAT_ORDER, sumBuffs } from './stats'
+import { addBuffs, STAT_ORDER, statTotal, sumBuffs } from './stats'
 
 export interface EncounterNarration {
   opening: string
+  gear: string
+  difficultFight: string
   playerInitiative: string
   enemyInitiative: string
   tooFastPlayer: string
   tooFastEnemy: string
 }
+
+/** An enemy this much stronger than the player triggers a warning. */
+export const DIFFICULT_FIGHT_RATIO = 1.3
 
 /**
  * Everything the app needs to start one fight: the content bundle, the tuning
@@ -173,12 +179,29 @@ function buildEncounter(
   loot: Equipment[],
   level: number,
 ): Encounter {
+  const gear =
+    loot.length === 0
+      ? ''
+      : loot.length === 1
+        ? fillTemplate(NARRATION.enemyGearOne, { flavor: loot[0]!.flavor })
+        : fillTemplate(NARRATION.enemyGearMany, {
+            count: String(loot.length),
+            flavor: loot.map((item) => item.flavor).join(' '),
+          })
+  const difficultFight =
+    statTotal(enemy.baseStats) >=
+    statTotal(player.character.baseStats) * DIFFICULT_FIGHT_RATIO
+      ? NARRATION.difficultFight
+      : ''
+
   return {
     id: archetype.id,
     level,
     title: archetype.name,
     narration: {
       opening: archetype.opening,
+      gear,
+      difficultFight,
       playerInitiative: 'You seize the initiative.',
       enemyInitiative: `The ${archetype.name.toLowerCase()} seizes the initiative.`,
       tooFastPlayer: 'The attack is too fast for you to react.',
@@ -245,12 +268,8 @@ export function rollEncounter(options: RollEncounterOptions = {}): Encounter {
     power: archetype.power,
     level,
   })
-  const loot = rollEquipment(
-    level,
-    random,
-    equipmentPiecesForLevel(level),
-    options.coreWeight,
-  )
+  const count = rollEquipmentCount(random)
+  const loot = rollEquipment(level, random, count, options.coreWeight)
   const gearBuffs = sumBuffs(loot.map((item) => item.buffs))
   const combined = addBuffs(rolled.baseStats, gearBuffs)
   const targetTotal = STAT_ORDER.reduce((sum, stat) => sum + rolled.baseStats[stat], 0)

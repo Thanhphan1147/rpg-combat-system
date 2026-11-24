@@ -26,6 +26,22 @@ export const NARRATION = {
   identifiedPrefix: 'You read the windup. {{description}}',
   vaguePrefix: 'You catch only a glimpse: {{description}}',
   systemDamage: '[ you have taken {{damage}} damage ]',
+  enemyGearOne: 'The enemy wears a single piece of gear. {{flavor}}',
+  enemyGearMany: 'The enemy wears {{count}} pieces of gear. {{flavor}}',
+  difficultFight: 'This is going to be a difficult fight.',
+  spoils: 'Spoils: {{items}}.',
+  noSpoils: 'Nothing worth stripping from this one.',
+  essenceDropped: 'An essence drops: {{essence}} (grants {{skill}}).',
+  noEssence: 'No essence this time.',
+  runOver: 'The wanderer falls. The run ends here.',
+  unknownIncoming: 'Something is coming.',
 } as const
 
 export type NarrationTemplateKey = keyof typeof NARRATION
+
+export function fillTemplate(
+  template: string,
+  values: Record<string, string>,
+): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => values[key] ?? '')
+}

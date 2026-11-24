@@ -46,3 +46,8 @@ export function statScore(buffs: Partial<StatBlock>): number {
     (buffs.perception ?? 0)
   )
 }
+
+/** Raw sum of every stat, matching the enemy roll's total. */
+export function statTotal(stats: Partial<StatBlock>): number {
+  return STAT_ORDER.reduce((sum, stat) => sum + (stats[stat] ?? 0), 0)
+}
