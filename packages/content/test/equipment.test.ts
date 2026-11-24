@@ -47,6 +47,7 @@ describe('equipment generation', () => {
       const item = createEquipment(slot, 1, seeded(1))
       expect(item.slot).toBe(slot)
       expect(item.name.length).toBeGreaterThan(0)
+      expect(item.flavor.length).toBeGreaterThan(0)
       for (const stat of CORE_STATS[slot]) {
         expect(item.buffs[stat] ?? 0).toBeGreaterThan(0)
       }

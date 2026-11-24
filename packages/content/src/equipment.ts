@@ -10,6 +10,7 @@ export interface Equipment {
   id: string
   slot: EquipmentSlot
   name: string
+  flavor: string
   buffs: Partial<StatBlock>
 }
 
@@ -60,6 +61,41 @@ const NOUNS: Record<EquipmentSlot, string[]> = {
   armor: ['Vest', 'Mail', 'Cuirass', 'Hide', 'Plate'],
   helmet: ['Cap', 'Helm', 'Casque', 'Hood', 'Crown'],
   boots: ['Boots', 'Greaves', 'Treads', 'Striders'],
+}
+
+const FLAVOR: Record<EquipmentSlot, string[]> = {
+  weapon: [
+    'The edge is pitted and dark with old blood.',
+    'Its grip is wrapped in cracked, sweat-stained leather.',
+    'A crude length of iron, heavy enough to split a skull.',
+    'The blade rings faintly when the wind catches it.',
+    'Notches along the edge mark every fight it has survived.',
+    'The point is jagged, broken, and still eager.',
+  ],
+  armor: [
+    'Stitched hide plates, stiff with salt and old sweat.',
+    'Bone rings are lashed over a backing of boiled leather.',
+    'The scales overlap like a second, dead skin.',
+    'A patchwork of iron and hide that has seen better wars.',
+    'The straps are frayed, but the chest is still solid.',
+    'Dents in the plating remember blows that never healed.',
+  ],
+  helmet: [
+    'A hollowed skull lined with greasy rags.',
+    'The visor is a narrow slit of black iron.',
+    'Horn stubs jut from a cap of hardened hide.',
+    'The inside is dark and smells of old smoke.',
+    'A crown of bent nails and scavenged plate.',
+    'The leather is cracked, but the rivets hold.',
+  ],
+  boots: [
+    'The soles are worn thin by long, quiet marches.',
+    "Scales overlap down the shin like a lizard's leg.",
+    'The laces are replaced with strips of gut.',
+    'Mud never quite dries out of the seams.',
+    'Soft soles, made for moving without a sound.',
+    'Iron caps protect toes that have been broken before.',
+  ],
 }
 
 let nextEquipmentId = 1
@@ -140,6 +176,15 @@ function rollBuffs(
   return buffs
 }
 
+function flavorFor(slot: EquipmentSlot, name: string): string {
+  const options = FLAVOR[slot]
+  let hash = 0
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + name.charCodeAt(index)) >>> 0
+  }
+  return options[hash % options.length]!
+}
+
 /**
  * Rolls one piece of gear. `coreWeight` is the share of the stat budget that
  * goes to the slot's signature stats (weapon attack, armor health/defense,
@@ -153,13 +198,16 @@ export function createEquipment(
   coreWeight: number = EQUIPMENT_CORE_WEIGHT,
 ): Equipment {
   const name = `${pick(PREFIXES, random)} ${pick(NOUNS[slot], random)}`
+  const buffs = rollBuffs(SLOT_PROFILES[slot], level, coreWeight, random)
+  const flavor = flavorFor(slot, name)
   const id = `gear-${nextEquipmentId}`
   nextEquipmentId += 1
   return {
     id,
     slot,
     name,
-    buffs: rollBuffs(SLOT_PROFILES[slot], level, coreWeight, random),
+    flavor,
+    buffs,
   }
 }
 

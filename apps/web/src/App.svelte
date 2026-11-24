@@ -103,7 +103,7 @@
   const narration = $derived.by(() => {
     const preamble = [encounter.narration.opening]
     for (const item of encounter.loot) {
-      preamble.push(`The enemy wears ${item.name}: ${buffLine(item.buffs)}.`)
+      preamble.push(`The enemy wears ${item.name}. ${item.flavor}`)
     }
     const initiative = playerHasInitiative
       ? encounter.narration.playerInitiative
@@ -575,7 +575,7 @@
                 <span class="slot-label">{slot}</span>
                 {#if run.gear[slot]}
                   <span class="slot-essence">{run.gear[slot].name}</span>
-                  <span class="slot-buffs">{buffLine(run.gear[slot].buffs)}</span>
+                  <span class="slot-flavor">{run.gear[slot].flavor}</span>
                 {:else}
                   <span class="slot-empty">empty</span>
                 {/if}
@@ -594,7 +594,7 @@
                     {item.name}
                     <span class="slot-tag">{item.slot}</span>
                   </span>
-                  <span class="essence-buffs">{buffLine(item.buffs)}</span>
+                  <span class="equipment-flavor">{item.flavor}</span>
                 </button>
               {/each}
             {/if}
