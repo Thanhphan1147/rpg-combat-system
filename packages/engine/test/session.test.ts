@@ -8,7 +8,7 @@ import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 const rules: Ruleset = {
   reflex: { base: 12, scale: 0.5, floor: 1 },
   perception: { base: 12, scale: 0.5, floor: 1 },
-  startupCounter: { damageMultiplier: 1.5, stagger: 4 },
+  interruptDuringStartup: { damageMultiplier: 1.5, stagger: 4 },
   block: { incompleteMitigation: 0.5 },
 }
 

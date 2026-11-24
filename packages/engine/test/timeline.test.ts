@@ -14,7 +14,7 @@ import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 const rules: Ruleset = {
   reflex: { base: 12, scale: 0.5, floor: 1 },
   perception: { base: 10, scale: 1, floor: 1 },
-  startupCounter: { damageMultiplier: 1.5, stagger: 4 },
+  interruptDuringStartup: { damageMultiplier: 1.5, stagger: 4 },
   block: { incompleteMitigation: 0.5 },
 }
 
@@ -204,13 +204,13 @@ describe('timeline arithmetic', () => {
     expect(advanceUntilDecision(state)).toBe(state)
   })
 
-  it('advanceUntilDecision advances past hitstun to the next free actor', () => {
+  it('a faster attack interrupts the other, so the winner is free first', () => {
     let state = makeCombat()
     state = startSkill(state, 'a', 'jab', 'b')
     state = startSkill(state, 'b', 'jab', 'a')
 
     const settled = advanceUntilDecision(state)
-    expect(settled.timeline.tick).toBe(8)
-    expect(getFreeActors(settled)).toEqual(['a', 'b'])
+    expect(settled.timeline.tick).toBe(7)
+    expect(getFreeActors(settled)).toEqual(['a'])
   })
 })

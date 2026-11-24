@@ -25,13 +25,11 @@ export type CombatEvent =
   | { kind: 'dodged'; actorId: ActorId; targetActorId: ActorId; skillId: SkillId }
   | { kind: 'parried'; actorId: ActorId; targetActorId: ActorId; skillId: SkillId }
   | {
-      kind: 'countered'
+      kind: 'interrupted'
       actorId: ActorId
-      targetActorId: ActorId
       skillId: SkillId
-      targetSkillId: SkillId
-      damage: number
-      clean: boolean
+      byActorId: ActorId
+      bySkillId: SkillId
     }
   | { kind: 'staggered'; actorId: ActorId }
   | { kind: 'combatEnd'; winner: ActorId }

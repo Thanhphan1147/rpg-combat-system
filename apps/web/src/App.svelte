@@ -165,11 +165,10 @@
         return event.targetActorId === PLAYER
           ? `You parry the ${skillName(event.skillId)} with a sharp turn of the wrist.`
           : `The ${actorName(event.targetActorId)} parries your ${skillName(event.skillId)}.`
-      case 'countered': {
-        const reader = event.actorId === PLAYER ? 'You read' : `The ${actorName(event.actorId)} reads`
-        const verb = event.actorId === PLAYER ? 'counter' : 'counters'
-        const clean = event.clean ? ' — a clean read!' : ''
-        return `${reader} the ${skillName(event.targetSkillId)} and ${verb} for ${event.damage}${clean}.`
+      case 'interrupted': {
+        const cutter = event.byActorId === PLAYER ? 'Your' : `The ${actorName(event.byActorId)}'s`
+        const victim = event.actorId === PLAYER ? 'your' : `the ${actorName(event.actorId)}'s`
+        return `${cutter} ${skillName(event.bySkillId)} cuts through ${victim} ${skillName(event.skillId)}.`
       }
       case 'staggered':
         return event.actorId === PLAYER

@@ -37,7 +37,7 @@ export const goblinEncounter: Encounter = {
       id: 'wanderer',
       side: 'player',
       characterId: 'wanderer',
-      skillIds: ['slash', 'heavy', 'guard', 'dodge', 'counter'],
+      skillIds: ['slash', 'heavy', 'guard', 'dodge'],
     },
     {
       id: 'goblin',

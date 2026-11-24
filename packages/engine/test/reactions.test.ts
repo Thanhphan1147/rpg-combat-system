@@ -14,7 +14,7 @@ import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 const rules: Ruleset = {
   reflex: { base: 12, scale: 0.5, floor: 1 },
   perception: { base: 12, scale: 0.5, floor: 1 },
-  startupCounter: { damageMultiplier: 1.5, stagger: 4 },
+  interruptDuringStartup: { damageMultiplier: 1.5, stagger: 4 },
   block: { incompleteMitigation: 0.5 },
 }
 
@@ -81,14 +81,13 @@ function makeContent(): ContentBundle {
         hitstun: 0,
         power: 0,
       }),
-      counter: makeSkill({
-        id: 'counter',
-        kind: 'counter',
-        startup: 1,
+      quick: makeSkill({
+        id: 'quick',
+        startup: 0,
         delivery: 1,
-        ending: 3,
-        cooldown: 6,
-        hitstun: 4,
+        ending: 1,
+        cooldown: 0,
+        hitstun: 2,
         power: 6,
       }),
     },
@@ -107,7 +106,7 @@ function makeContent(): ContentBundle {
   }
 }
 
-const allSkills = ['jab', 'heavy', 'slow', 'guard', 'dodge', 'counter']
+const allSkills = ['jab', 'heavy', 'slow', 'guard', 'dodge', 'quick']
 
 function makeCombat() {
   return createCombat({
@@ -212,26 +211,37 @@ describe('resolution', () => {
     expect(state.actors.b?.runtime.hp).toBe(90)
   })
 
-  it('a clean startup counter interrupts, deals x1.5 and staggers', () => {
+  it('a faster attack interrupts a slower one', () => {
     let state = startSkill(makeCombat(), 'a', 'slow', 'b')
     const instanceId = state.timeline.active[0]!.instanceId
     state = advanceTo(state, 8)
-    state = startReaction(state, 'b', 'counter', instanceId)
-    state = advanceTo(state, 10)
+    state = startReaction(state, 'b', 'jab', instanceId)
+    state = advanceTo(state, 13)
 
-    expect(state.actors.a?.runtime.hp).toBe(86)
-    expect(state.actors.a?.runtime.staggeredUntil).toBe(14)
+    expect(state.actors.a?.runtime.hp).toBe(93)
     expect(state.timeline.active.some((skill) => skill.skillId === 'slow')).toBe(false)
   })
 
-  it('does not interrupt a skill armored during delivery', () => {
+  it('a clean startup interrupt is rewarded and staggers', () => {
+    let state = startSkill(makeCombat(), 'a', 'slow', 'b')
+    const instanceId = state.timeline.active[0]!.instanceId
+    state = advanceTo(state, 8)
+    state = startReaction(state, 'b', 'quick', instanceId)
+    state = advanceTo(state, 9)
+
+    expect(state.actors.a?.runtime.hp).toBe(86)
+    expect(state.actors.a?.runtime.staggeredUntil).toBe(13)
+    expect(state.timeline.active.some((skill) => skill.skillId === 'slow')).toBe(false)
+  })
+
+  it('does not interrupt a skill armored during delivery (trade)', () => {
     let state = startSkill(makeCombat(), 'a', 'heavy', 'b')
     const instanceId = state.timeline.active[0]!.instanceId
     state = advanceTo(state, 8)
-    state = startReaction(state, 'b', 'counter', instanceId)
+    state = startReaction(state, 'b', 'quick', instanceId)
     state = advanceTo(state, 10)
 
-    expect(state.actors.a?.runtime.hp).toBe(100)
+    expect(state.actors.a?.runtime.hp).toBe(91)
     expect(state.actors.b?.runtime.hp).toBe(74)
   })
 })

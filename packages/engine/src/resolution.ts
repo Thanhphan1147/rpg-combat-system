@@ -18,6 +18,10 @@ function connectAtOf(state: CombatState, instance: TimelineSkill): number {
   return instance.startedAt + skillDefinition.startup + skillDefinition.delivery
 }
 
+function isDefensive(kind: string): boolean {
+  return kind === 'block' || kind === 'dodge' || kind === 'parry'
+}
+
 function damageFor(
   state: CombatState,
   attackerId: ActorId,
@@ -85,68 +89,36 @@ function removeInstance(state: CombatState, instanceId: InstanceId): CombatState
   }
 }
 
-function canCounterInterrupt(state: CombatState, counter: TimelineSkill): boolean {
-  const attack = state.timeline.active.find(
-    (active) => active.instanceId === counter.reactingToInstanceId,
-  )
-  if (attack === undefined || attack.resolved) {
-    return false
-  }
-  const attackDefinition = skillDefinitionOf(state, attack.skillId)
-  if (attackDefinition === undefined) {
-    return false
-  }
-  const inStartup = state.timeline.tick < attack.startedAt + attackDefinition.startup
-  return inStartup || !attackDefinition.armoredDuringDelivery
+interface Interruption {
+  skill: TimelineSkill
+  inStartup: boolean
 }
 
-function resolveCounter(
+/** In-flight attacks from the target that this hit can cancel. */
+function findInterruptions(
   state: CombatState,
-  counter: TimelineSkill,
-  counterDefinition: SkillDef,
-): CombatState {
-  const attack = state.timeline.active.find(
-    (active) => active.instanceId === counter.reactingToInstanceId,
-  )
-  if (attack === undefined || attack.resolved) {
-    return state
+  targetId: ActorId,
+  at: number,
+): Interruption[] {
+  const interruptions: Interruption[] = []
+  for (const candidate of state.timeline.active) {
+    if (candidate.actorId !== targetId || candidate.resolved) {
+      continue
+    }
+    const definition = skillDefinitionOf(state, candidate.skillId)
+    if (definition === undefined || definition.kind !== 'attack') {
+      continue
+    }
+    const inStartup = at < candidate.startedAt + definition.startup
+    if (!inStartup && definition.armoredDuringDelivery) {
+      continue
+    }
+    interruptions.push({ skill: candidate, inStartup })
   }
-  const attackDefinition = skillDefinitionOf(state, attack.skillId)
-  if (attackDefinition === undefined) {
-    return state
-  }
-
-  const at = state.timeline.tick
-  const inStartup = at < attack.startedAt + attackDefinition.startup
-  if (!inStartup && attackDefinition.armoredDuringDelivery) {
-    return state
-  }
-
-  const raw = damageFor(state, counter.actorId, attack.actorId, counterDefinition.power)
-  const multiplier = inStartup ? state.rules.startupCounter.damageMultiplier : 1
-  const damage = Math.max(1, Math.ceil(raw * multiplier))
-
-  let next = applyDamage(state, attack.actorId, damage)
-  next = lockUntil(next, attack.actorId, 'hitstunUntil', at + counterDefinition.hitstun)
-  if (inStartup) {
-    next = lockUntil(next, attack.actorId, 'staggeredUntil', at + next.rules.startupCounter.stagger)
-  }
-  next = removeInstance(next, attack.instanceId)
-  next = emit(next, {
-    kind: 'countered',
-    actorId: counter.actorId,
-    targetActorId: attack.actorId,
-    skillId: counter.skillId,
-    targetSkillId: attack.skillId,
-    damage,
-    clean: inStartup,
-  })
-  if (inStartup) {
-    next = emit(next, { kind: 'staggered', actorId: attack.actorId })
-  }
-  return withEnd(state, next)
+  return interruptions
 }
 
+/** Resolves an attack landing on its target. */
 function resolveAttack(
   state: CombatState,
   attack: TimelineSkill,
@@ -163,20 +135,9 @@ function resolveAttack(
       active.reactingToInstanceId === attack.instanceId && active.actorId === targetId,
   )
 
-  const counter = reactions.find((reaction) => {
-    const definition = skillDefinitionOf(state, reaction.skillId)
-    return definition?.kind === 'counter' && connectAtOf(state, reaction) <= at
-  })
-  if (counter !== undefined && canCounterInterrupt(state, counter)) {
-    const definition = skillDefinitionOf(state, counter.skillId)
-    if (definition !== undefined) {
-      return resolveCounter(state, counter, definition)
-    }
-  }
-
   const defence = reactions.find((reaction) => {
     const definition = skillDefinitionOf(state, reaction.skillId)
-    if (definition === undefined || definition.kind === 'counter') {
+    if (definition === undefined || !isDefensive(definition.kind)) {
       return false
     }
     return connectAtOf(state, reaction) <= at
@@ -209,18 +170,42 @@ function resolveAttack(
     return emit(state, event)
   }
 
-  const raw = damageFor(state, attack.actorId, targetId, attackDefinition.power)
+  const interruptions = findInterruptions(state, targetId, at)
+  const cleanInterrupt = interruptions.some((entry) => entry.inStartup)
+
+  let damage = damageFor(state, attack.actorId, targetId, attackDefinition.power)
+  if (cleanInterrupt) {
+    damage = Math.max(
+      1,
+      Math.ceil(damage * state.rules.interruptDuringStartup.damageMultiplier),
+    )
+  }
+
   const lateBlock = reactions.find(
     (reaction) => skillDefinitionOf(state, reaction.skillId)?.kind === 'block',
   )
+  if (lateBlock !== undefined) {
+    damage = Math.max(1, Math.ceil(damage * (1 - state.rules.block.incompleteMitigation)))
+  }
 
   let next = state
-  let damage = raw
-  if (lateBlock !== undefined) {
-    damage = Math.max(1, Math.ceil(raw * (1 - state.rules.block.incompleteMitigation)))
+  for (const interruption of interruptions) {
+    next = removeInstance(next, interruption.skill.instanceId)
+    next = emit(next, {
+      kind: 'interrupted',
+      actorId: targetId,
+      skillId: interruption.skill.skillId,
+      byActorId: attack.actorId,
+      bySkillId: attack.skillId,
+    })
   }
+
   next = applyDamage(next, targetId, damage)
   next = lockUntil(next, targetId, 'hitstunUntil', at + attackDefinition.hitstun)
+  if (cleanInterrupt) {
+    next = lockUntil(next, targetId, 'staggeredUntil', at + next.rules.interruptDuringStartup.stagger)
+    next = emit(next, { kind: 'staggered', actorId: targetId })
+  }
 
   const event: CombatEvent =
     lateBlock !== undefined
@@ -243,10 +228,10 @@ function resolveAttack(
 }
 
 /**
- * Resolves the effects of a skill reaching its connect tick. Attacks deal
- * damage (or are blocked/dodged/parried), counters interrupt their target, and
- * pure defence reactions have no connect-time effect of their own. Returns a
- * new state with narration events appended.
+ * Resolves the effects of a skill reaching its connect tick. Attacks deal damage
+ * and interrupt any slower in-flight attack; block/dodge/parry have no
+ * connect-time effect of their own (they are evaluated when the incoming attack
+ * lands). Returns a new state with narration events appended.
  */
 export function resolveConnect(state: CombatState, instanceId: InstanceId): CombatState {
   const instance = state.timeline.active.find((active) => active.instanceId === instanceId)
@@ -256,10 +241,6 @@ export function resolveConnect(state: CombatState, instanceId: InstanceId): Comb
   const definition = skillDefinitionOf(state, instance.skillId)
   if (definition === undefined) {
     return state
-  }
-
-  if (instance.reactingToInstanceId !== null) {
-    return definition.kind === 'counter' ? resolveCounter(state, instance, definition) : state
   }
   return definition.kind === 'attack' ? resolveAttack(state, instance, definition) : state
 }

@@ -2,7 +2,7 @@ import type { SkillId } from './ids'
 
 export type Phase = 'startup' | 'delivery' | 'ending'
 
-export type SkillKind = 'attack' | 'block' | 'dodge' | 'parry' | 'counter'
+export type SkillKind = 'attack' | 'block' | 'dodge' | 'parry'
 
 export type SkillTargeting = 'self' | 'opponent'
 

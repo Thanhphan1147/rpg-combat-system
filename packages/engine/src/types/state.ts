@@ -52,7 +52,7 @@ export type CombatOutcome =
 export interface Ruleset {
   reflex: { base: number; scale: number; floor: number }
   perception: { base: number; scale: number; floor: number }
-  startupCounter: { damageMultiplier: number; stagger: number }
+  interruptDuringStartup: { damageMultiplier: number; stagger: number }
   block: { incompleteMitigation: number }
 }
 
