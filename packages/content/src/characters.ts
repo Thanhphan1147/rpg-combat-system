@@ -25,26 +25,38 @@ const STAT_ORDER: Stat[] = [
   Stats.Perception,
 ]
 
+export interface RollGoblinOptions {
+  id?: string
+  name?: string
+  bias?: Partial<StatBlock>
+}
+
 /**
  * Rolls a goblin whose base stats total between 85% and 115% of the player's
- * total. The extra points are distributed randomly, weighted by the player's own
- * profile, so each fight presents a different threat.
+ * total. The extra points are distributed randomly around the player's profile
+ * (optionally biased toward an archetype), so each fight presents a different
+ * threat.
  */
 export function rollGoblin(
   player: CharacterTemplate,
   random: () => number = Math.random,
+  options: RollGoblinOptions = {},
 ): CharacterTemplate {
   const stats: StatBlock = { ...MINIMUMS }
+  const bias = options.bias ?? {}
 
   const playerTotal = STAT_ORDER.reduce((sum, key) => sum + player.baseStats[key], 0)
   const ratio = 0.85 + random() * 0.3
   const target = Math.round(playerTotal * ratio)
 
+  const weightFor = (key: Stat): number => player.baseStats[key] * (bias[key] ?? 1)
+  const weightTotal = STAT_ORDER.reduce((sum, key) => sum + weightFor(key), 0)
+
   for (const key of STAT_ORDER) {
     const jitter = 0.9 + random() * 0.2
     stats[key] = Math.max(
       MINIMUMS[key],
-      Math.round(player.baseStats[key] * ratio * jitter),
+      Math.round((target * weightFor(key) * jitter) / weightTotal),
     )
   }
 
@@ -62,10 +74,13 @@ export function rollGoblin(
     }
   }
 
-  return { id: 'goblin', name: 'Goblin', baseStats: stats }
+  return {
+    id: options.id ?? 'goblin',
+    name: options.name ?? 'Goblin',
+    baseStats: stats,
+  }
 }
 
 export const characters: Record<string, CharacterTemplate> = {
   wanderer,
-  goblin: rollGoblin(wanderer, () => 0.5),
 }

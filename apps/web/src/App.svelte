@@ -22,11 +22,8 @@
     SkillId,
     TimelineSkill,
   } from '@rpg/engine'
-  import { rollGoblinEncounter } from '@rpg/content'
+  import { NARRATION, rollEncounter } from '@rpg/content'
   import type { Encounter } from '@rpg/content'
-
-  const PLAYER = 'wanderer'
-  const GOBLIN = 'goblin'
 
   const STAT_ROWS = [
     { key: Stat.MaxHp, label: 'max hp' },
@@ -37,8 +34,8 @@
     { key: Stat.Perception, label: 'perception' },
   ] as const
 
-  function beginFight(): { encounter: Encounter; combat: CombatState } {
-    const encounter = rollGoblinEncounter()
+  function beginFight(excludeId?: string): { encounter: Encounter; combat: CombatState } {
+    const encounter = rollEncounter(undefined, excludeId)
     const combat = createCombat({
       content: encounter.content,
       rules: encounter.rules,
@@ -56,11 +53,17 @@
   const prompt = $derived.by(() => getPrompt(combat))
   const ended = $derived.by(() => combat.outcome.status === 'ended')
   const freeActors = $derived.by(() => getFreeActors(combat))
-  const playerHasInitiative = $derived.by(
-    () =>
-      getEffectiveStat(combat, PLAYER, Stat.Speed) >=
-      getEffectiveStat(combat, GOBLIN, Stat.Speed),
-  )
+  const playerHasInitiative = $derived.by(() => {
+    const player = actorIdForSide('player')
+    const enemy = actorIdForSide('enemy')
+    if (player === undefined || enemy === undefined) {
+      return false
+    }
+    return (
+      getEffectiveStat(combat, player, Stat.Speed) >=
+      getEffectiveStat(combat, enemy, Stat.Speed)
+    )
+  })
   const narration = $derived.by(() => {
     const preamble = [encounter.narration.opening]
     const initiative = playerHasInitiative
@@ -103,19 +106,44 @@
     return combat.content.skills[id]?.name ?? id
   }
 
+  function actorIdForSide(side: 'player' | 'enemy'): ActorId | undefined {
+    return combat.roster.find((id) => combat.actors[id]?.side === side)
+  }
+
+  function isPlayer(id: ActorId): boolean {
+    return combat.actors[id]?.side === 'player'
+  }
+
+  function isEnemy(id: ActorId): boolean {
+    return combat.actors[id]?.side === 'enemy'
+  }
+
+  function subject(id: ActorId): string {
+    return `The ${actorName(id)}`
+  }
+
+  function object(id: ActorId): string {
+    return `the ${actorName(id)}`
+  }
+
+  function fill(template: string, values: Record<string, string>): string {
+    return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => values[key] ?? '')
+  }
+
   function describeIncoming(attackerId: ActorId, skillId: SkillId): string {
     const skill = combat.content.skills[skillId]
     if (skill === undefined) {
-      return `The ${actorName(attackerId)} moves.`
+      return fill(NARRATION.skillUsedEnemy, { actor: subject(attackerId), skill: skillId })
     }
     const observer = combat.roster.find((id) => id !== attackerId)
     if (observer === undefined) {
-      return `The ${actorName(attackerId)} winds up a ${skill.name}.`
+      return fill(NARRATION.skillUsedEnemy, { actor: subject(attackerId), skill: skill.name })
     }
     const perception = getEffectiveStat(combat, observer, Stat.Perception)
-    const readable = readTicks(perception, combat.rules) <= scalePhases(combat, attackerId, skill).startup
+    const readable =
+      readTicks(perception, combat.rules) <= scalePhases(combat, attackerId, skill).startup
     return readable
-      ? `The ${actorName(attackerId)} winds up a ${skill.name}.`
+      ? fill(NARRATION.skillUsedEnemy, { actor: subject(attackerId), skill: skill.name })
       : skill.vagueDescription
   }
 
@@ -155,59 +183,89 @@
       case 'combatStart':
         return ''
       case 'skillUsed':
-        return event.actorId === PLAYER
-          ? `You commit to a ${skillName(event.skillId)}.`
+        return isPlayer(event.actorId)
+          ? fill(NARRATION.skillUsedPlayer, { skill: skillName(event.skillId) })
           : describeIncoming(event.actorId, event.skillId)
       case 'reactionUsed':
-        return event.actorId === PLAYER
-          ? `You answer with a ${skillName(event.skillId)}.`
-          : `The ${actorName(event.actorId)} answers with a ${skillName(event.skillId)}.`
+        return isPlayer(event.actorId)
+          ? fill(NARRATION.reactionUsedPlayer, { skill: skillName(event.skillId) })
+          : fill(NARRATION.reactionUsedEnemy, {
+              actor: subject(event.actorId),
+              skill: skillName(event.skillId),
+            })
       case 'hit': {
         const flavor = combat.content.skills[event.skillId]?.hitFlavor ?? ''
-        if (event.targetActorId === PLAYER) {
+        if (isPlayer(event.targetActorId)) {
           const line =
             flavor.length > 0
               ? flavor
-              : `The ${actorName(event.actorId)}'s ${skillName(event.skillId)} catches you.`
-          return `${line}\n[ you have taken ${event.damage} damage ]`
+              : fill(NARRATION.hitPlayerFallback, {
+                  actor: subject(event.actorId),
+                  skill: skillName(event.skillId),
+                })
+          return `${line}\n${fill(NARRATION.systemDamage, { damage: String(event.damage) })}`
         }
         return flavor.length > 0
           ? flavor
-          : `Your ${skillName(event.skillId)} bites into the ${actorName(event.targetActorId)}.`
+          : fill(NARRATION.hitEnemyFallback, {
+              skill: skillName(event.skillId),
+              target: object(event.targetActorId),
+            })
       }
       case 'blocked':
-        return event.targetActorId === PLAYER
-          ? `You turn the ${skillName(event.skillId)} aside on your guard.`
-          : `The ${actorName(event.targetActorId)} blocks your ${skillName(event.skillId)} cleanly.`
+        return isPlayer(event.targetActorId)
+          ? fill(NARRATION.blockedPlayer, { skill: skillName(event.skillId) })
+          : fill(NARRATION.blockedEnemy, {
+              actor: subject(event.targetActorId),
+              skill: skillName(event.skillId),
+            })
       case 'dodged':
-        return event.targetActorId === PLAYER
-          ? `You slip aside from the ${skillName(event.skillId)}.`
-          : `The ${actorName(event.targetActorId)} slips aside from your ${skillName(event.skillId)}.`
+        return isPlayer(event.targetActorId)
+          ? fill(NARRATION.dodgedPlayer, { skill: skillName(event.skillId) })
+          : fill(NARRATION.dodgedEnemy, {
+              actor: subject(event.targetActorId),
+              skill: skillName(event.skillId),
+            })
       case 'parried':
-        return event.targetActorId === PLAYER
-          ? `You parry the ${skillName(event.skillId)} with a sharp turn of the wrist.`
-          : `The ${actorName(event.targetActorId)} parries your ${skillName(event.skillId)}.`
-      case 'interrupted': {
-        const cutter = event.byActorId === PLAYER ? 'Your' : `The ${actorName(event.byActorId)}'s`
-        const victim = event.actorId === PLAYER ? 'your' : `the ${actorName(event.actorId)}'s`
-        return `${cutter} ${skillName(event.bySkillId)} cuts through ${victim} ${skillName(event.skillId)}.`
-      }
+        return isPlayer(event.targetActorId)
+          ? fill(NARRATION.parriedPlayer, { skill: skillName(event.skillId) })
+          : fill(NARRATION.parriedEnemy, {
+              actor: subject(event.targetActorId),
+              skill: skillName(event.skillId),
+            })
+      case 'interrupted':
+        return isPlayer(event.byActorId)
+          ? fill(NARRATION.interruptedByPlayer, {
+              skill: skillName(event.bySkillId),
+              target: object(event.actorId),
+              targetSkill: skillName(event.skillId),
+            })
+          : fill(NARRATION.interruptedByEnemy, {
+              actor: subject(event.byActorId),
+              skill: skillName(event.bySkillId),
+              targetSkill: skillName(event.skillId),
+            })
       case 'staggered':
-        return event.actorId === PLAYER
-          ? 'You stagger, reeling.'
-          : `The ${actorName(event.actorId)} staggers, reeling.`
+        return isPlayer(event.actorId)
+          ? NARRATION.staggeredPlayer
+          : fill(NARRATION.staggeredEnemy, { actor: subject(event.actorId) })
       case 'armored':
-        return event.actorId === PLAYER
-          ? `Your ${skillName(event.skillId)} shrugs off the hit and keeps coming.`
-          : `The ${actorName(event.actorId)}'s ${skillName(event.skillId)} shrugs off the hit and keeps coming.`
+        return isPlayer(event.actorId)
+          ? fill(NARRATION.armoredPlayer, { skill: skillName(event.skillId) })
+          : fill(NARRATION.armoredEnemy, {
+              actor: subject(event.actorId),
+              skill: skillName(event.skillId),
+            })
       case 'unreactable':
-        return event.targetActorId === PLAYER
+        return isPlayer(event.targetActorId)
           ? encounter.narration.tooFastPlayer
           : encounter.narration.tooFastEnemy
-      case 'combatEnd':
-        return event.winner === PLAYER
-          ? 'The goblin folds to the wet stones and moves no more.'
-          : 'Your knees give way. The dark closes in.'
+      case 'combatEnd': {
+        const enemy = actorIdForSide('enemy')
+        return isPlayer(event.winner)
+          ? fill(NARRATION.victory, { enemy: enemy ? subject(enemy) : 'The goblin' })
+          : NARRATION.defeat
+      }
     }
   }
 
@@ -226,7 +284,7 @@
           if (definition === undefined) {
             return { option, connectsAt: Number.POSITIVE_INFINITY }
           }
-          const durations = scalePhases(combat, GOBLIN, definition)
+          const durations = scalePhases(combat, current.actorId, definition)
           return {
             option,
             connectsAt: combat.timeline.tick + durations.startup + durations.delivery,
@@ -248,7 +306,7 @@
     while (safety < 200) {
       safety += 1
       const current = getPrompt(combat)
-      if (current === null || current.actorId !== GOBLIN) {
+      if (current === null || !isEnemy(current.actorId)) {
         return
       }
       combat = step(combat, chooseGoblinIntent(current))
@@ -292,7 +350,7 @@
   }
 
   function reset(): void {
-    const next = beginFight()
+    const next = beginFight(encounter.id)
     encounter = next.encounter
     combat = next.combat
     autoPlay()
@@ -304,12 +362,13 @@
 
   function incomingLine(current: { incoming: IncomingSkillInfo }): string {
     const skill = current.incoming.skillId
-    if (current.incoming.identified) {
-      const precise = combat.content.skills[skill]?.preciseDescription ?? ''
-      return `You read the windup. ${precise}`
-    }
-    const vague = combat.content.skills[skill]?.vagueDescription ?? 'Something is coming.'
-    return `You catch only a glimpse: ${vague}`
+    const identified = current.incoming.identified
+    const description = identified
+      ? (combat.content.skills[skill]?.preciseDescription ?? '')
+      : (combat.content.skills[skill]?.vagueDescription ?? 'Something is coming.')
+    return fill(identified ? NARRATION.identifiedPrefix : NARRATION.vaguePrefix, {
+      description,
+    })
   }
 </script>
 
@@ -385,7 +444,7 @@
     {#if ended}
       <button onclick={reset}>Fight again</button>
     {:else if prompt !== null}
-      {#if prompt.actorId !== PLAYER}
+      {#if !isPlayer(prompt.actorId)}
         <button onclick={autoPlay}>Continue</button>
       {:else if prompt.kind === 'action'}
         <div class="options">

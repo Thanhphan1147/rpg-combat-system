@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createCombat, getPrompt, step } from '@rpg/engine'
 import type { Intent } from '@rpg/engine'
 import { rollGoblin, wanderer } from '../src/characters'
-import { goblinEncounter, rollGoblinEncounter } from '../src/encounter'
+import { goblinEncounter, goblinArchetypes, rollEncounter } from '../src/encounter'
 
 function seeded(seed: number): () => number {
   let state = seed >>> 0
@@ -42,6 +42,17 @@ describe('goblin encounter', () => {
     expect(dodge.ending).toBeGreaterThan(guard.ending)
   })
 
+  it('ships multiple goblin archetypes with resolvable skills', () => {
+    expect(goblinArchetypes.map((archetype) => archetype.id)).toEqual(
+      expect.arrayContaining(['clubber', 'archer', 'berserker']),
+    )
+    for (const archetype of goblinArchetypes) {
+      for (const skillId of archetype.skillIds) {
+        expect(goblinEncounter.content.skills[skillId]).toBeDefined()
+      }
+    }
+  })
+
   it('rolls the goblin between 85% and 115% of the player total', () => {
     const playerTotal = total(wanderer.baseStats)
     const min = Math.round(playerTotal * 0.85)
@@ -58,7 +69,7 @@ describe('goblin encounter', () => {
 
   it('plays a rolled fight to completion', () => {
     const random = seeded(7)
-    const encounter = rollGoblinEncounter(random)
+    const encounter = rollEncounter(random)
     let state = createCombat({
       content: encounter.content,
       rules: encounter.rules,

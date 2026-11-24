@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createCombat, getPrompt, scalePhases, step } from '@rpg/engine'
 import type { CombatState, Intent, Prompt } from '@rpg/engine'
-import { rollGoblinEncounter } from '../src/encounter'
+import { rollEncounter } from '../src/encounter'
 
 function seeded(seed: number): () => number {
   let state = seed >>> 0
@@ -51,7 +51,7 @@ describe('balance simulation', () => {
     let totalSteps = 0
 
     for (let run = 0; run < runs; run += 1) {
-      const encounter = rollGoblinEncounter(random)
+      const encounter = rollEncounter(random)
       let state = createCombat({
         content: encounter.content,
         rules: encounter.rules,
