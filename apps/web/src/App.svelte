@@ -3,11 +3,15 @@
     advanceUntilDecision,
     applyTransition,
     createCombat,
+    getEffectiveStat,
     getFreeActors,
     getMaxHp,
     isDecisionPoint,
     nextTransition,
+    reactionAt,
+    reactionDelay,
     startSkill,
+    Stat,
   } from '@rpg/engine'
   import type { ActorId, CombatState, SkillId, TimelineSkill } from '@rpg/engine'
   import { sampleContent, sampleRules } from '@rpg/content'
@@ -90,6 +94,19 @@
     }
     return 'ending'
   }
+
+  function reactorOf(skill: TimelineSkill): ActorId | undefined {
+    return combat.roster.find((id) => id !== skill.actorId)
+  }
+
+  function reactAtOf(skill: TimelineSkill): number | null {
+    const reactor = reactorOf(skill)
+    if (reactor === undefined) {
+      return null
+    }
+    const reflex = getEffectiveStat(combat, reactor, Stat.Reflex)
+    return reactionAt(skill.startedAt, reflex, combat.rules)
+  }
 </script>
 
 <main>
@@ -124,6 +141,10 @@
           <dd>{combat.actors[actorId]?.runtime.hitstunUntil}</dd>
           <dt>stagger</dt>
           <dd>{combat.actors[actorId]?.runtime.staggeredUntil}</dd>
+          <dt>reflex</dt>
+          <dd>{getEffectiveStat(combat, actorId, Stat.Reflex)}</dd>
+          <dt>react delay</dt>
+          <dd>{reactionDelay(getEffectiveStat(combat, actorId, Stat.Reflex), combat.rules)}</dd>
         </dl>
 
         <div class="tags">
@@ -166,10 +187,12 @@
             <th>end</th>
             <th>resolved</th>
             <th>target</th>
+            <th>reacts</th>
           </tr>
         </thead>
         <tbody>
           {#each combat.timeline.active as skill (skill.instanceId)}
+            {@const reactAt = reactAtOf(skill)}
             <tr>
               <td>{skill.instanceId}</td>
               <td>{skill.actorId}</td>
@@ -180,6 +203,13 @@
               <td>{skill.endingEndsAt}</td>
               <td>{skill.resolved ? 'yes' : 'no'}</td>
               <td>{skill.targetActorId ?? '—'}</td>
+              <td>
+                {#if reactAt === null}
+                  —
+                {:else}
+                  <span class:active={combat.timeline.tick >= reactAt}>{reactAt}</span>
+                {/if}
+              </td>
             </tr>
           {/each}
         </tbody>
