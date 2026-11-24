@@ -6,8 +6,8 @@ import type { CombatState, ContentBundle, Ruleset } from '../src/types/state'
 
 const rules: Ruleset = {
   reflex: { base: 12, scale: 0.5, floor: 1 },
-  perception: { readBase: 10 },
-  cleanCounter: { damageMultiplier: 1.5, stagger: 4 },
+  perception: { base: 10, scale: 1, floor: 1 },
+  startupCounter: { damageMultiplier: 1.5, stagger: 4 },
   block: { incompleteMitigation: 0.5 },
 }
 
@@ -16,7 +16,7 @@ function createFixture() {
   const template: CharacterTemplate = {
     id: 'hero',
     name: 'Hero',
-    baseStats: { speed: 10, reflex: 10, perception: 10, hp: 100, attack: 8, defense: 4 },
+    baseStats: { speed: 10, reflex: 10, perception: 10, maxHp: 100, attack: 8, defense: 4 },
   }
   const content: ContentBundle = {
     skills: {},
@@ -27,30 +27,35 @@ function createFixture() {
       'hero-1': {
         id: actor,
         side: 'player',
-        template,
-        runtime: { pools: { hp: 100 }, skillIds: [], cooldowns: {} },
+        characterId: 'hero',
+        runtime: {
+          hp: 100,
+          skillIds: [],
+          cooldownEndsAt: {},
+          stunnedUntil: 0,
+          staggeredUntil: 0,
+        },
       },
     },
-    order: [actor],
+    roster: [actor],
     content,
     rules,
     timeline: { tick: 0, active: [] },
     pending: null,
-    status: 'active',
-    winner: null,
+    outcome: { status: 'active' },
   }
   return { state, actor }
 }
 
 describe('getEffectiveStat', () => {
-  it('resolves stats from the base template', () => {
+  it('resolves stats from the actor character template', () => {
     const { state, actor } = createFixture()
     expect(getEffectiveStat(state, actor, Stat.Attack)).toBe(8)
     expect(getEffectiveStat(state, actor, Stat.Speed)).toBe(10)
     expect(getEffectiveStat(state, actor, Stat.Defense)).toBe(4)
   })
 
-  it('exposes max hp from the hp stat', () => {
+  it('exposes max hp from the maxHp stat', () => {
     const { state, actor } = createFixture()
     expect(getMaxHp(state, actor)).toBe(100)
   })
@@ -58,5 +63,11 @@ describe('getEffectiveStat', () => {
   it('throws for unknown actors', () => {
     const { state } = createFixture()
     expect(() => getEffectiveStat(state, 'ghost', Stat.Attack)).toThrow(/Unknown actor/)
+  })
+
+  it('throws when the character template is missing', () => {
+    const { state, actor } = createFixture()
+    delete state.content.characters.hero
+    expect(() => getEffectiveStat(state, actor, Stat.Attack)).toThrow(/Unknown character/)
   })
 })

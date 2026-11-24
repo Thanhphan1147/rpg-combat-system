@@ -1,20 +1,17 @@
 import type { CharacterRuntime, CharacterTemplate } from './character'
-import type { ActorId, SkillId } from './ids'
-import type { Phase, SkillDef } from './skill'
+import type { ActorId, CharacterId, InstanceId, SkillId } from './ids'
+import type { SkillDef } from './skill'
 
 export type ActorSide = 'player' | 'enemy'
 
 export interface TimelineSkill {
-  instanceId: string
+  instanceId: InstanceId
   actorId: ActorId
   skillId: SkillId
-  phase: Phase
   startedAt: number
-  phaseEndsAt: number
-  connectAt: number
   endingEndsAt: number
   targetActorId: ActorId | null
-  reactingToInstanceId: string | null
+  reactingToInstanceId: InstanceId | null
   resolved: boolean
 }
 
@@ -26,15 +23,15 @@ export interface Timeline {
 export interface CombatActor {
   id: ActorId
   side: ActorSide
-  template: CharacterTemplate
+  characterId: CharacterId
   runtime: CharacterRuntime
 }
 
 export interface ReactionWindow {
-  incomingActorId: ActorId
-  incomingInstanceId: string
   reactorActorId: ActorId
-  opensAt: number
+  incomingInstanceId: InstanceId
+  reactAt: number
+  deadline: number
 }
 
 export type PendingDecision =
@@ -42,24 +39,27 @@ export type PendingDecision =
   | { kind: 'reaction'; window: ReactionWindow }
 
 export interface ContentBundle {
-  skills: Record<string, SkillDef>
-  characters: Record<string, CharacterTemplate>
+  skills: Record<SkillId, SkillDef>
+  characters: Record<CharacterId, CharacterTemplate>
 }
+
+export type CombatOutcome =
+  | { status: 'active' }
+  | { status: 'ended'; winner: ActorId }
 
 export interface Ruleset {
   reflex: { base: number; scale: number; floor: number }
-  perception: { readBase: number }
-  cleanCounter: { damageMultiplier: number; stagger: number }
+  perception: { base: number; scale: number; floor: number }
+  startupCounter: { damageMultiplier: number; stagger: number }
   block: { incompleteMitigation: number }
 }
 
 export interface CombatState {
-  actors: Record<string, CombatActor>
-  order: ActorId[]
+  actors: Record<ActorId, CombatActor>
+  roster: ActorId[]
   content: ContentBundle
   rules: Ruleset
   timeline: Timeline
   pending: PendingDecision | null
-  status: 'active' | 'ended'
-  winner: ActorId | null
+  outcome: CombatOutcome
 }

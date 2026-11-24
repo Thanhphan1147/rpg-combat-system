@@ -8,7 +8,9 @@ export interface CharacterTemplate {
 }
 
 export interface CharacterRuntime {
-  pools: { hp: number }
+  hp: number
   skillIds: SkillId[]
-  cooldowns: Record<string, number>
+  cooldownEndsAt: Partial<Record<SkillId, number>>
+  stunnedUntil: number
+  staggeredUntil: number
 }

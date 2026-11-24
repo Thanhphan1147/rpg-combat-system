@@ -6,3 +6,6 @@ export type SkillId = string
 
 /** Identifier for an authored character template. */
 export type CharacterId = string
+
+/** Identifier for a specific in-flight skill instance on the timeline. */
+export type InstanceId = string

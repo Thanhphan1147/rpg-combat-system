@@ -2,7 +2,7 @@ export const Stat = {
   Speed: 'speed',
   Reflex: 'reflex',
   Perception: 'perception',
-  Hp: 'hp',
+  MaxHp: 'maxHp',
   Attack: 'attack',
   Defense: 'defense',
 } as const
