@@ -8,6 +8,11 @@ export interface SkillArmor {
   duringDelivery: boolean
 }
 
+export interface SkillDescription {
+  vague: string
+  precise: string
+}
+
 export interface SkillDef {
   id: SkillId
   name: string
@@ -17,5 +22,6 @@ export interface SkillDef {
   ending: number
   cooldown: number
   hitstun: number
+  descriptions: SkillDescription
   armor: SkillArmor
 }
