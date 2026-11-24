@@ -47,6 +47,9 @@ export function canReact(
   if (incoming.resolved) {
     return false
   }
+  if (incoming.respondedBy.includes(reactorId)) {
+    return false
+  }
   const skill = state.content.skills[incoming.skillId]
   if (skill === undefined) {
     return false
@@ -160,34 +163,47 @@ export function startReaction(
     targetActorId: skill.targeting === 'opponent' ? incoming.actorId : null,
     reactingToInstanceId: incomingInstanceId,
     resolved: false,
+    respondedBy: [],
+    defence: null,
   }
 
-  const next: CombatState = {
-    ...state,
-    actors: {
-      ...state.actors,
-      [reactorId]: {
-        ...reactor,
-        runtime: {
-          ...reactor.runtime,
-          cooldownEndsAt: {
-            ...reactor.runtime.cooldownEndsAt,
-            [skillId]: tick + skill.cooldown,
+  const updatedIncoming: TimelineSkill = {
+    ...incoming,
+    respondedBy: [...incoming.respondedBy, reactorId],
+  }
+
+  return emit(
+    {
+      ...state,
+      actors: {
+        ...state.actors,
+        [reactorId]: {
+          ...reactor,
+          runtime: {
+            ...reactor.runtime,
+            cooldownEndsAt: {
+              ...reactor.runtime.cooldownEndsAt,
+              [skillId]: tick + skill.cooldown,
+            },
           },
         },
       },
+      timeline: {
+        ...state.timeline,
+        nextInstanceId: state.timeline.nextInstanceId + 1,
+        active: [
+          ...state.timeline.active.map((active) =>
+            active.instanceId === incomingInstanceId ? updatedIncoming : active,
+          ),
+          instance,
+        ],
+      },
     },
-    timeline: {
-      ...state.timeline,
-      nextInstanceId: state.timeline.nextInstanceId + 1,
-      active: [...state.timeline.active, instance],
+    {
+      kind: 'reactionUsed',
+      actorId: reactorId,
+      skillId,
+      incomingInstanceId,
     },
-  }
-
-  return emit(next, {
-    kind: 'reactionUsed',
-    actorId: reactorId,
-    skillId,
-    incomingInstanceId,
-  })
+  )
 }

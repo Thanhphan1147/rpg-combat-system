@@ -243,4 +243,27 @@ describe('resolution', () => {
     expect(state.actors.b?.runtime.hp).toBe(90)
     expect(state.timeline.active.some((skill) => skill.skillId === 'heavy')).toBe(false)
   })
+
+  it('a dodge that lands in time still negates the hit after it ends', () => {
+    let state = startSkill(makeCombat(), 'a', 'slow', 'b')
+    const instanceId = state.timeline.active[0]!.instanceId
+    state = advanceTo(state, 8)
+    state = startReaction(state, 'b', 'dodge', instanceId)
+    state = advanceTo(state, 15)
+
+    expect(state.actors.a?.runtime.hp).toBe(100)
+    expect(state.actors.b?.runtime.hp).toBe(90)
+  })
+
+  it('does not let the same actor react twice to one attack', () => {
+    let state = startSkill(makeCombat(), 'a', 'slow', 'b')
+    const instanceId = state.timeline.active[0]!.instanceId
+    state = advanceTo(state, 8)
+    state = startReaction(state, 'b', 'dodge', instanceId)
+    state = advanceTo(state, 13)
+
+    const incoming = state.timeline.active.find((skill) => skill.instanceId === instanceId)!
+    expect(canReact(state, 'b', incoming)).toBe(false)
+    expect(() => startReaction(state, 'b', 'quick', instanceId)).toThrow(/Cannot react/)
+  })
 })

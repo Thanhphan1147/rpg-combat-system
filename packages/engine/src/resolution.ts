@@ -119,6 +119,42 @@ function cancelOthers(
   return next
 }
 
+/**
+ * Records that a defensive reaction became active in time. The record lives on
+ * the incoming attack so it survives the reaction's own recovery ending.
+ */
+function recordDefence(
+  state: CombatState,
+  reaction: TimelineSkill,
+  definition: SkillDef,
+): CombatState {
+  const incomingId = reaction.reactingToInstanceId
+  if (incomingId === null) {
+    return state
+  }
+  const incoming = state.timeline.active.find((active) => active.instanceId === incomingId)
+  if (incoming === undefined) {
+    return state
+  }
+  const connectsAt = reaction.startedAt + definition.startup + definition.delivery
+  if (incoming.defence !== null && incoming.defence.connectsAt <= connectsAt) {
+    return state
+  }
+  const updated: TimelineSkill = {
+    ...incoming,
+    defence: { actorId: reaction.actorId, skillId: reaction.skillId, connectsAt },
+  }
+  return {
+    ...state,
+    timeline: {
+      ...state.timeline,
+      active: state.timeline.active.map((active) =>
+        active.instanceId === incomingId ? updated : active,
+      ),
+    },
+  }
+}
+
 /** Resolves an attack landing on its target. */
 function resolveAttack(
   state: CombatState,
@@ -136,24 +172,35 @@ function resolveAttack(
       active.reactingToInstanceId === attack.instanceId && active.actorId === targetId,
   )
 
-  const defence = reactions.find((reaction) => {
+  const activeDefence = reactions.find((reaction) => {
     const definition = skillDefinitionOf(state, reaction.skillId)
     if (definition === undefined || !isDefensive(definition.kind)) {
       return false
     }
     return connectAtOf(state, reaction) <= at
   })
-  if (defence !== undefined) {
-    const kind = skillDefinitionOf(state, defence.skillId)?.kind
+
+  const recorded = attack.defence
+  const recordedKind =
+    recorded !== null && recorded.connectsAt <= at
+      ? skillDefinitionOf(state, recorded.skillId)?.kind
+      : undefined
+  const defenceKind =
+    recordedKind ??
+    (activeDefence === undefined
+      ? undefined
+      : skillDefinitionOf(state, activeDefence.skillId)?.kind)
+
+  if (defenceKind !== undefined) {
     const event: CombatEvent =
-      kind === 'dodge'
+      defenceKind === 'dodge'
         ? {
             kind: 'dodged',
             actorId: attack.actorId,
             targetActorId: targetId,
             skillId: attack.skillId,
           }
-        : kind === 'parry'
+        : defenceKind === 'parry'
           ? {
               kind: 'parried',
               actorId: attack.actorId,
@@ -218,5 +265,11 @@ export function resolveConnect(state: CombatState, instanceId: InstanceId): Comb
   if (definition === undefined) {
     return state
   }
-  return definition.kind === 'attack' ? resolveAttack(state, instance, definition) : state
+  if (definition.kind === 'attack') {
+    return resolveAttack(state, instance, definition)
+  }
+  if (isDefensive(definition.kind) && instance.reactingToInstanceId !== null) {
+    return recordDefence(state, instance, definition)
+  }
+  return state
 }

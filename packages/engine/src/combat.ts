@@ -117,6 +117,8 @@ export function startSkill(
     targetActorId: target,
     reactingToInstanceId: null,
     resolved: false,
+    respondedBy: [],
+    defence: null,
   }
 
   const started: CombatState = {

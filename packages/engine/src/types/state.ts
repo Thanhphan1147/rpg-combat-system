@@ -5,6 +5,12 @@ import type { SkillDef } from './skill'
 
 export type ActorSide = 'player' | 'enemy'
 
+export interface DefenceRecord {
+  actorId: ActorId
+  skillId: SkillId
+  connectsAt: number
+}
+
 export interface TimelineSkill {
   instanceId: InstanceId
   actorId: ActorId
@@ -14,6 +20,8 @@ export interface TimelineSkill {
   targetActorId: ActorId | null
   reactingToInstanceId: InstanceId | null
   resolved: boolean
+  respondedBy: ActorId[]
+  defence: DefenceRecord | null
 }
 
 export interface Timeline {
