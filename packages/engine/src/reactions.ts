@@ -167,12 +167,15 @@ export function canCommit(
       return false
     }
     const definition = state.content.skills[active.skillId]
-    if (definition?.armoredDuringDelivery !== true) {
+    if (definition === undefined) {
       return false
     }
     const startupEnd = active.startedAt + active.startupTicks
     const connect = startupEnd + active.deliveryTicks
-    return at >= startupEnd && at < connect
+    if (definition.armoredDuringStartup === true && at < startupEnd) {
+      return true
+    }
+    return definition.armoredDuringDelivery === true && at >= startupEnd && at <= connect
   })
 }
 

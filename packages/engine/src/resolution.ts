@@ -97,6 +97,23 @@ function markTraded(state: CombatState, instanceId: InstanceId): CombatState {
   }
 }
 
+/** Whether a skill is currently protected from interruption by super armor. */
+function isArmoredNow(state: CombatState, skill: TimelineSkill, at: number): boolean {
+  const definition = skillDefinitionOf(state, skill.skillId)
+  if (definition === undefined) {
+    return false
+  }
+  const startupEnd = skill.startedAt + skill.startupTicks
+  const connect = startupEnd + skill.deliveryTicks
+  if (definition.armoredDuringStartup === true && at < startupEnd) {
+    return true
+  }
+  if (definition.armoredDuringDelivery === true && at >= startupEnd && at <= connect) {
+    return true
+  }
+  return false
+}
+
 /**
  * Records that a defensive reaction became active in time. The record lives on
  * the incoming attack so it survives the reaction's own recovery ending.
@@ -147,11 +164,8 @@ function cancelOthers(
       continue
     }
     const definition = skillDefinitionOf(next, other.skillId)
-    const inDelivery =
-      at >= other.startedAt + other.startupTicks &&
-      at <= other.startedAt + other.startupTicks + other.deliveryTicks
 
-    if (definition?.kind === 'attack' && definition.armoredDuringDelivery === true && inDelivery) {
+    if (definition?.kind === 'attack' && isArmoredNow(next, other, at)) {
       if (!other.traded) {
         next = markTraded(next, other.instanceId)
         next = emit(next, {
@@ -254,7 +268,11 @@ function resolveAttack(
   )
   const cleanInterrupt = others.some((other) => {
     const definition = skillDefinitionOf(state, other.skillId)
-    return definition?.kind === 'attack' && at < other.startedAt + other.startupTicks
+    return (
+      definition?.kind === 'attack' &&
+      at < other.startedAt + other.startupTicks &&
+      !isArmoredNow(state, other, at)
+    )
   })
 
   let damage = damageFor(state, attack.actorId, targetId, attackDefinition.power)
