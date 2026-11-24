@@ -11,6 +11,6 @@ export interface CharacterRuntime {
   hp: number
   skillIds: SkillId[]
   cooldownEndsAt: Partial<Record<SkillId, number>>
-  stunnedUntil: number
+  hitstunUntil: number
   staggeredUntil: number
 }

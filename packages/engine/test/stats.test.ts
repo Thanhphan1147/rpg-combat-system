@@ -32,7 +32,7 @@ function createFixture() {
           hp: 100,
           skillIds: [],
           cooldownEndsAt: {},
-          stunnedUntil: 0,
+          hitstunUntil: 0,
           staggeredUntil: 0,
         },
       },
