@@ -10,7 +10,6 @@ import { skills } from './skills'
 export interface Encounter {
   id: string
   title: string
-  intro: string
   content: ContentBundle
   rules: Ruleset
   combatants: CombatantConfig[]
@@ -19,8 +18,6 @@ export interface Encounter {
 export const goblinEncounter: Encounter = {
   id: 'goblin-ambush',
   title: 'The Goblin Ambush',
-  intro:
-    'The path narrows between wet stones. Something small and green shifts in the dark, then lunges with a rusted blade.',
   content: { skills, characters },
   rules: standardRules,
   combatants: [

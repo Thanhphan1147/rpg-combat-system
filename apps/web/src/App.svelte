@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createCombat, getPrompt, snapshot, step } from '@rpg/engine'
+  import { createCombat, getPrompt, step } from '@rpg/engine'
   import type {
     ActorId,
     CombatLogEntry,
@@ -26,16 +26,12 @@
   let logElement = $state<HTMLElement>()
 
   const prompt = $derived.by(() => getPrompt(combat))
-  const view = $derived.by(() => snapshot(combat))
-  const playerView = $derived.by(() => view.actors.find((actor) => actor.id === PLAYER))
-  const goblinView = $derived.by(() => view.actors.find((actor) => actor.id === GOBLIN))
   const ended = $derived.by(() => combat.outcome.status === 'ended')
-  const won = $derived.by(
-    () => combat.outcome.status === 'ended' && combat.outcome.winner === PLAYER,
-  )
-
   const narration = $derived.by(() =>
-    combat.log.map((entry) => narrate(entry)).filter((line) => line.length > 0),
+    combat.log
+      .filter((entry) => entry.event.kind !== 'combatStart')
+      .map((entry) => narrate(entry))
+      .filter((line) => line.length > 0),
   )
 
   $effect(() => {
@@ -58,7 +54,7 @@
     const { event } = entry
     switch (event.kind) {
       case 'combatStart':
-        return goblinEncounter.intro
+        return ''
       case 'skillUsed':
         return event.actorId === PLAYER
           ? `You commit to a ${skillName(event.skillId)}.`
@@ -160,10 +156,6 @@
     autoPlay()
   }
 
-  function health(actor: { hp: number; maxHp: number } | undefined): string {
-    return actor ? `${actor.hp} / ${actor.maxHp}` : '—'
-  }
-
   function incomingLine(current: ReactionPrompt): string {
     const skill = current.incoming.skillId
     if (current.incoming.identified) {
@@ -176,20 +168,6 @@
 </script>
 
 <main class="story">
-  <header class="masthead">
-    <h1>{goblinEncounter.title}</h1>
-    <div class="bars">
-      <div class="fighter">
-        <span>{playerView?.name ?? 'You'}</span>
-        <span class="hp">{health(playerView)}</span>
-      </div>
-      <div class="fighter">
-        <span>{goblinView?.name ?? 'Goblin'}</span>
-        <span class="hp">{health(goblinView)}</span>
-      </div>
-    </div>
-  </header>
-
   <section class="narration" bind:this={logElement}>
     {#each narration as line}
       <p>{line}</p>
@@ -198,29 +176,25 @@
 
   <section class="prompt">
     {#if ended}
-      <p class="outcome">{won ? 'Victory.' : 'You fall.'}</p>
       <button onclick={reset}>Fight again</button>
-    {:else if prompt === null}
-      <p class="outcome">The world holds its breath.</p>
-    {:else if prompt.actorId !== PLAYER}
-      <p class="outcome">The goblin hesitates.</p>
-      <button onclick={autoPlay}>Continue</button>
-    {:else if prompt.kind === 'action'}
-      <h2>Your move</h2>
-      <div class="options">
-        {#each prompt.options as option (option.skillId)}
-          <button onclick={() => act(option.skillId)}>{option.label}</button>
-        {/each}
-      </div>
-    {:else}
-      <h2>React</h2>
-      <p class="incoming">{incomingLine(prompt)}</p>
-      <div class="options">
-        {#each prompt.options as option (option.skillId)}
-          <button onclick={() => react(option.skillId)}>{option.label}</button>
-        {/each}
-        <button class="ghost" onclick={takeIt}>Take it</button>
-      </div>
+    {:else if prompt !== null}
+      {#if prompt.actorId !== PLAYER}
+        <button onclick={autoPlay}>Continue</button>
+      {:else if prompt.kind === 'action'}
+        <div class="options">
+          {#each prompt.options as option (option.skillId)}
+            <button onclick={() => act(option.skillId)}>{option.label}</button>
+          {/each}
+        </div>
+      {:else}
+        <p class="incoming">{incomingLine(prompt)}</p>
+        <div class="options">
+          {#each prompt.options as option (option.skillId)}
+            <button onclick={() => react(option.skillId)}>{option.label}</button>
+          {/each}
+          <button class="ghost" onclick={takeIt}>Take it</button>
+        </div>
+      {/if}
     {/if}
   </section>
 </main>

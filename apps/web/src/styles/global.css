@@ -20,51 +20,22 @@ body {
 }
 
 #app {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .story {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  min-height: 100vh;
+  gap: 16px;
+  height: 100dvh;
   max-width: 720px;
   margin: 0 auto;
-  padding: 40px 24px 28px;
-}
-
-.masthead h1 {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: #f0e9d8;
-}
-
-.bars {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8a8172;
-}
-
-.fighter {
-  display: flex;
-  gap: 8px;
-}
-
-.hp {
-  color: #c9a45c;
+  padding: 32px 24px 24px;
 }
 
 .narration {
   flex: 1;
-  max-height: 52vh;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 6px;
   scrollbar-width: thin;
@@ -80,17 +51,7 @@ body {
 }
 
 .prompt {
-  border-top: 1px solid #242424;
-  padding-top: 16px;
-}
-
-.prompt h2 {
-  margin: 0 0 10px;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #8a8172;
+  padding-top: 8px;
 }
 
 .incoming {
@@ -124,10 +85,4 @@ button:hover {
 button.ghost {
   color: #8a8172;
   border-color: #2a2a2a;
-}
-
-.outcome {
-  margin: 0 0 12px;
-  font-size: 18px;
-  color: #e8e0cf;
 }
