@@ -25,6 +25,7 @@ export type CombatEvent =
       bySkillId: SkillId
     }
   | { kind: 'staggered'; actorId: ActorId }
+  | { kind: 'armored'; actorId: ActorId; skillId: SkillId }
   | {
       kind: 'unreactable'
       actorId: ActorId

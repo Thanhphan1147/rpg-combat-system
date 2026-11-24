@@ -16,9 +16,9 @@
     ActorId,
     CombatLogEntry,
     CombatState,
+    IncomingSkillInfo,
     Intent,
     Prompt,
-    ReactionPrompt,
     SkillId,
     TimelineSkill,
   } from '@rpg/engine'
@@ -196,6 +196,10 @@
         return event.actorId === PLAYER
           ? 'You stagger, reeling.'
           : `The ${actorName(event.actorId)} staggers, reeling.`
+      case 'armored':
+        return event.actorId === PLAYER
+          ? `Your ${skillName(event.skillId)} shrugs off the hit and keeps coming.`
+          : `The ${actorName(event.actorId)}'s ${skillName(event.skillId)} shrugs off the hit and keeps coming.`
       case 'unreactable':
         return event.targetActorId === PLAYER
           ? encounter.narration.tooFastPlayer
@@ -208,6 +212,9 @@
   }
 
   function chooseGoblinIntent(current: Prompt): Intent {
+    if (current.kind === 'commit') {
+      return { kind: 'commit' }
+    }
     if (current.kind === 'reaction') {
       const candidates = current.options
         .filter(
@@ -275,6 +282,15 @@
     }
   }
 
+  function keepCommitting(): void {
+    try {
+      combat = step(combat, { kind: 'commit' })
+      autoPlay()
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   function reset(): void {
     const next = beginFight()
     encounter = next.encounter
@@ -286,7 +302,7 @@
     return (value / CENTITICKS_PER_TICK).toFixed(1)
   }
 
-  function incomingLine(current: ReactionPrompt): string {
+  function incomingLine(current: { incoming: IncomingSkillInfo }): string {
     const skill = current.incoming.skillId
     if (current.incoming.identified) {
       const precise = combat.content.skills[skill]?.preciseDescription ?? ''
@@ -376,6 +392,14 @@
           {#each prompt.options as option (option.skillId)}
             <button onclick={() => act(option.skillId)}>{option.label}</button>
           {/each}
+        </div>
+      {:else if prompt.kind === 'commit'}
+        <p class="incoming">{incomingLine(prompt)}</p>
+        <div class="options">
+          {#each prompt.options as option (option.skillId)}
+            <button onclick={() => react(option.skillId)}>{option.label}</button>
+          {/each}
+          <button class="ghost" onclick={keepCommitting}>Keep committing</button>
         </div>
       {:else}
         <p class="incoming">{incomingLine(prompt)}</p>

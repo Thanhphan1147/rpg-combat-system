@@ -123,6 +123,7 @@ export function startSkill(
     targetActorId: target,
     reactingToInstanceId: null,
     resolved: false,
+    traded: false,
     respondedBy: [],
     defence: null,
   }

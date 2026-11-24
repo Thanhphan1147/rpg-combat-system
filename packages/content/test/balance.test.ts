@@ -12,6 +12,9 @@ function seeded(seed: number): () => number {
 }
 
 function chooseIntent(state: CombatState, prompt: Prompt, random: () => number): Intent {
+  if (prompt.kind === 'commit') {
+    return { kind: 'commit' }
+  }
   if (prompt.kind === 'reaction') {
     const best = prompt.options
       .filter(

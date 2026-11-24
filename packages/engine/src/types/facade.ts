@@ -33,7 +33,14 @@ export interface ReactionPrompt {
   incoming: IncomingSkillInfo
 }
 
-export type Prompt = ActionPrompt | ReactionPrompt
+export interface CommitPrompt {
+  kind: 'commit'
+  actorId: ActorId
+  options: PromptOption[]
+  incoming: IncomingSkillInfo
+}
+
+export type Prompt = ActionPrompt | ReactionPrompt | CommitPrompt
 
 export interface ActorSnapshot {
   id: ActorId

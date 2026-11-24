@@ -85,44 +85,23 @@ function removeInstance(state: CombatState, instanceId: InstanceId): CombatState
   }
 }
 
-/**
- * Ends the exchange: cancels every other unresolved skill. Attacks that are
- * cancelled are narrated as interrupted; defensive reactions simply lapse.
- */
-function cancelOthers(
-  state: CombatState,
-  keepInstanceId: InstanceId,
-  byActorId: ActorId,
-  bySkillId: string,
-): CombatState {
-  let next = state
-  for (const other of state.timeline.active) {
-    if (other.instanceId === keepInstanceId || other.resolved) {
-      continue
-    }
-    next = removeInstance(next, other.instanceId)
-    const definition = skillDefinitionOf(next, other.skillId)
-    if (definition?.kind === 'attack') {
-      next = emit(next, {
-        kind: 'interrupted',
-        actorId: other.actorId,
-        skillId: other.skillId,
-        byActorId,
-        bySkillId,
-      })
-    }
+function markTraded(state: CombatState, instanceId: InstanceId): CombatState {
+  return {
+    ...state,
+    timeline: {
+      ...state.timeline,
+      active: state.timeline.active.map((active) =>
+        active.instanceId === instanceId ? { ...active, traded: true } : active,
+      ),
+    },
   }
-  return next
 }
 
 /**
  * Records that a defensive reaction became active in time. The record lives on
  * the incoming attack so it survives the reaction's own recovery ending.
  */
-function recordDefence(
-  state: CombatState,
-  reaction: TimelineSkill,
-): CombatState {
+function recordDefence(state: CombatState, reaction: TimelineSkill): CombatState {
   const incomingId = reaction.reactingToInstanceId
   if (incomingId === null) {
     return state
@@ -150,6 +129,54 @@ function recordDefence(
   }
 }
 
+/**
+ * Ends the exchange for everything except an armored skill already in delivery.
+ * Those are marked `traded` instead of cancelled, so they still land. All other
+ * unresolved skills are removed; cancelled attacks are narrated as interrupted.
+ */
+function cancelOthers(
+  state: CombatState,
+  keepInstanceId: InstanceId,
+  at: number,
+  byActorId: ActorId,
+  bySkillId: string,
+): CombatState {
+  let next = state
+  for (const other of state.timeline.active) {
+    if (other.instanceId === keepInstanceId || other.resolved) {
+      continue
+    }
+    const definition = skillDefinitionOf(next, other.skillId)
+    const inDelivery =
+      at >= other.startedAt + other.startupTicks &&
+      at <= other.startedAt + other.startupTicks + other.deliveryTicks
+
+    if (definition?.kind === 'attack' && definition.armoredDuringDelivery === true && inDelivery) {
+      if (!other.traded) {
+        next = markTraded(next, other.instanceId)
+        next = emit(next, {
+          kind: 'armored',
+          actorId: other.actorId,
+          skillId: other.skillId,
+        })
+      }
+      continue
+    }
+
+    next = removeInstance(next, other.instanceId)
+    if (definition?.kind === 'attack') {
+      next = emit(next, {
+        kind: 'interrupted',
+        actorId: other.actorId,
+        skillId: other.skillId,
+        byActorId,
+        bySkillId,
+      })
+    }
+  }
+  return next
+}
+
 /** Resolves an attack landing on its target. */
 function resolveAttack(
   state: CombatState,
@@ -162,6 +189,7 @@ function resolveAttack(
   }
 
   const at = state.timeline.tick
+  const armoredAttack = attackDefinition.armoredDuringDelivery === true
   const reactions = state.timeline.active.filter(
     (active) =>
       active.reactingToInstanceId === attack.instanceId && active.actorId === targetId,
@@ -172,6 +200,9 @@ function resolveAttack(
     if (definition === undefined || !isDefensive(definition.kind)) {
       return false
     }
+    if (armoredAttack && definition.kind !== 'dodge') {
+      return false
+    }
     return connectAtOf(reaction) <= at
   })
 
@@ -180,11 +211,15 @@ function resolveAttack(
     recorded !== null && recorded.connectsAt <= at
       ? skillDefinitionOf(state, recorded.skillId)?.kind
       : undefined
-  const defenceKind =
-    recordedKind ??
-    (activeDefence === undefined
+  const recordedDefenceKind =
+    recordedKind !== undefined && (!armoredAttack || recordedKind === 'dodge')
+      ? recordedKind
+      : undefined
+  const activeDefenceKind =
+    activeDefence === undefined
       ? undefined
-      : skillDefinitionOf(state, activeDefence.skillId)?.kind)
+      : skillDefinitionOf(state, activeDefence.skillId)?.kind
+  const defenceKind = recordedDefenceKind ?? activeDefenceKind
 
   if (defenceKind !== undefined) {
     const event: CombatEvent =
@@ -208,7 +243,10 @@ function resolveAttack(
               targetActorId: targetId,
               skillId: attack.skillId,
             }
-    return emit(cancelOthers(state, attack.instanceId, attack.actorId, attack.skillId), event)
+    return emit(
+      cancelOthers(state, attack.instanceId, at, attack.actorId, attack.skillId),
+      event,
+    )
   }
 
   const others = state.timeline.active.filter(
@@ -227,12 +265,16 @@ function resolveAttack(
     )
   }
 
-  let next = cancelOthers(state, attack.instanceId, attack.actorId, attack.skillId)
+  let next = cancelOthers(state, attack.instanceId, at, attack.actorId, attack.skillId)
   next = applyDamage(next, targetId, damage)
   next = lockUntil(next, targetId, 'hitstunUntil', at + attackDefinition.hitstun)
   if (cleanInterrupt) {
     next = lockUntil(next, targetId, 'staggeredUntil', at + next.rules.interruptDuringStartup.stagger)
     next = emit(next, { kind: 'staggered', actorId: targetId })
+  }
+
+  if (attack.traded) {
+    next = { ...next, timeline: { ...next.timeline, active: [] } }
   }
 
   const event: CombatEvent = {
@@ -247,9 +289,8 @@ function resolveAttack(
 
 /**
  * Resolves the effects of a skill reaching its connect tick. An attack delivers
- * and ends the exchange, cancelling every other in-flight skill; defensive
- * reactions have no connect-time effect of their own (they are evaluated when
- * the incoming attack lands). Returns a new state with narration appended.
+ * and ends the exchange (or trades with an armored attack); defensive reactions
+ * are recorded so they survive their own recovery.
  */
 export function resolveConnect(state: CombatState, instanceId: InstanceId): CombatState {
   const instance = state.timeline.active.find((active) => active.instanceId === instanceId)

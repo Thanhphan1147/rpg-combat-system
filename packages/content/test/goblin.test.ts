@@ -74,7 +74,9 @@ describe('goblin encounter', () => {
       }
 
       let intent: Intent
-      if (prompt.kind === 'action') {
+      if (prompt.kind === 'commit') {
+        intent = { kind: 'commit' }
+      } else if (prompt.kind === 'action') {
         const attacks = prompt.options.filter((option) => option.kind === 'attack')
         const pool = attacks.length > 0 ? attacks : prompt.options
         const choice = pool[Math.floor(random() * pool.length)]!

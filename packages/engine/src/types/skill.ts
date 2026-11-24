@@ -18,6 +18,7 @@ export interface SkillDef {
   cooldownGroup?: string
   hitstun: number
   power: number
+  armoredDuringDelivery?: boolean
   vagueDescription: string
   preciseDescription: string
   hitFlavor: string

@@ -5,6 +5,7 @@ import type {
   ActorSnapshot,
   Combat,
   CombatSnapshot,
+  CommitPrompt,
   IncomingSkillInfo,
   Prompt,
   PromptOption,
@@ -21,7 +22,13 @@ import {
   nextTransition,
   skillConnectAt,
 } from './timeline'
-import { canReact, getReactionOptions, startReaction } from './reactions'
+import {
+  canCommit,
+  canReact,
+  getCommitOptions,
+  getReactionOptions,
+  startReaction,
+} from './reactions'
 import { getPerceptionView } from './perception'
 import { startSkill } from './combat'
 
@@ -77,6 +84,61 @@ function reactionPrompt(state: CombatState): ReactionPrompt | null {
   return null
 }
 
+function commitPrompt(state: CombatState): CommitPrompt | null {
+  for (const incoming of state.timeline.active) {
+    if (incoming.resolved || incoming.reactingToInstanceId !== null) {
+      continue
+    }
+    const skill = state.content.skills[incoming.skillId]
+    if (skill?.kind !== 'attack') {
+      continue
+    }
+    for (const actorId of state.roster) {
+      if (actorId === incoming.actorId || !canCommit(state, actorId, incoming)) {
+        continue
+      }
+      const options = getCommitOptions(state, actorId, incoming)
+      const view = getPerceptionView(state, actorId, incoming)
+      return {
+        kind: 'commit',
+        actorId,
+        incoming: {
+          instanceId: incoming.instanceId,
+          actorId: incoming.actorId,
+          skillId: incoming.skillId,
+          identified: view.identified,
+          connectAt: skillConnectAt(incoming),
+        },
+        options: options.map((option) => optionFor(state, option.skillId, option.identified)),
+      }
+    }
+  }
+  return null
+}
+
+function markResponded(
+  state: CombatState,
+  incomingInstanceId: string,
+  actorId: ActorId,
+): CombatState {
+  const incoming = state.timeline.active.find(
+    (active) => active.instanceId === incomingInstanceId,
+  )
+  if (incoming === undefined) {
+    return state
+  }
+  const updated = { ...incoming, respondedBy: [...incoming.respondedBy, actorId] }
+  return {
+    ...state,
+    timeline: {
+      ...state.timeline,
+      active: state.timeline.active.map((active) =>
+        active.instanceId === incomingInstanceId ? updated : active,
+      ),
+    },
+  }
+}
+
 function nextFreeActor(state: CombatState): ActorId | undefined {
   const free = getFreeActors(state)
   if (free.length === 0) {
@@ -129,6 +191,10 @@ export function getPrompt(state: CombatState): Prompt | null {
   if (state.outcome.status === 'ended') {
     return null
   }
+  const commit = commitPrompt(state)
+  if (commit !== null) {
+    return commit
+  }
   const reaction = reactionPrompt(state)
   if (reaction !== null) {
     return reaction
@@ -151,6 +217,9 @@ export function applyIntent(state: CombatState, intent: Intent): CombatState {
   }
 
   if (intent.kind === 'pass') {
+    if (prompt.kind === 'commit') {
+      return markResponded(state, prompt.incoming.instanceId, prompt.actorId)
+    }
     if (prompt.kind !== 'reaction') {
       throw new Error('Cannot pass an action prompt')
     }
@@ -161,7 +230,29 @@ export function applyIntent(state: CombatState, intent: Intent): CombatState {
     return advanceUntilDecision(applyTransition(state, transition))
   }
 
+  if (intent.kind === 'commit') {
+    if (prompt.kind !== 'commit') {
+      throw new Error('Not a commit prompt')
+    }
+    return markResponded(state, prompt.incoming.instanceId, prompt.actorId)
+  }
+
   if (intent.kind === 'react') {
+    if (prompt.kind === 'commit') {
+      const withoutArmor: CombatState = {
+        ...state,
+        timeline: {
+          ...state.timeline,
+          active: state.timeline.active.filter((active) => active.actorId !== prompt.actorId),
+        },
+      }
+      return startReaction(
+        withoutArmor,
+        prompt.actorId,
+        intent.skillId,
+        prompt.incoming.instanceId,
+      )
+    }
     if (prompt.kind !== 'reaction') {
       throw new Error('Not a reaction prompt')
     }

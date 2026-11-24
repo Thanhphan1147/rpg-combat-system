@@ -1,6 +1,6 @@
 import type { ActorId, InstanceId } from './types/ids'
 import type { CombatState, TimelineSkill } from './types/state'
-import { canReactAt, getReactionOptions } from './reactions'
+import { canReactAt, getReactionOptions, hasCommitOpportunity } from './reactions'
 import { resolveConnect } from './resolution'
 
 /**
@@ -244,6 +244,9 @@ export function isDecisionPoint(state: CombatState): boolean {
     return false
   }
   if (state.pending !== null || hasReactionOpportunity(state)) {
+    return true
+  }
+  if (hasCommitOpportunity(state)) {
     return true
   }
   if (hasUnresolvedAttack(state)) {

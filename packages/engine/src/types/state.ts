@@ -23,6 +23,7 @@ export interface TimelineSkill {
   targetActorId: ActorId | null
   reactingToInstanceId: InstanceId | null
   resolved: boolean
+  traded: boolean
   respondedBy: ActorId[]
   defence: DefenceRecord | null
 }
