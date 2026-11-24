@@ -174,3 +174,15 @@ pre {
   border-bottom: 1px solid #141414;
   padding: 2px 0;
 }
+
+.reaction {
+  border: 1px solid #1f1f1f;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.muted {
+  color: #8a8a8a;
+  margin: 4px 0 8px;
+}

@@ -2,18 +2,31 @@
   import {
     advanceUntilDecision,
     applyTransition,
+    canReact,
     createCombat,
     getEffectiveStat,
     getFreeActors,
     getMaxHp,
+    getPerceptionView,
+    getReactionOptions,
     isDecisionPoint,
     nextTransition,
     reactionAt,
     reactionDelay,
+    skillConnectAt,
+    startReaction,
     startSkill,
     Stat,
   } from '@rpg/engine'
-  import type { ActorId, CombatState, Phase, SkillId, TimelineSkill } from '@rpg/engine'
+  import type {
+    ActorId,
+    CombatState,
+    Phase,
+    ReactionOption,
+    SkillId,
+    TimelineSkill,
+    Transition,
+  } from '@rpg/engine'
   import { sampleContent, sampleRules } from '@rpg/content'
 
   const combatants = [
@@ -31,6 +44,47 @@
   const freeActors = $derived.by(() => getFreeActors(combat))
   const decision = $derived.by(() => isDecisionPoint(combat))
   const nextT = $derived.by(() => nextTransition(combat))
+
+  interface ReactionWindowView {
+    instanceId: string
+    attacker: ActorId
+    skillId: SkillId
+    reactor: ActorId
+    connectAt: number
+    description: string
+    options: ReactionOption[]
+  }
+
+  const reactionWindows = $derived.by(() => {
+    const windows: ReactionWindowView[] = []
+    for (const instance of combat.timeline.active) {
+      if (instance.resolved || instance.reactingToInstanceId !== null) {
+        continue
+      }
+      const skillDefinition = combat.content.skills[instance.skillId]
+      if (skillDefinition?.kind !== 'attack') {
+        continue
+      }
+      const reactor = combat.roster.find((id) => id !== instance.actorId)
+      if (reactor === undefined || !canReact(combat, reactor, instance)) {
+        continue
+      }
+      const options = getReactionOptions(combat, reactor, instance)
+      if (options.length === 0) {
+        continue
+      }
+      windows.push({
+        instanceId: instance.instanceId,
+        attacker: instance.actorId,
+        skillId: instance.skillId,
+        reactor,
+        connectAt: skillConnectAt(combat, instance),
+        description: getPerceptionView(combat, reactor, instance).description,
+        options,
+      })
+    }
+    return windows
+  })
 
   function pushLog(message: string): void {
     log = [message, ...log].slice(0, 80)
@@ -52,6 +106,27 @@
     }
   }
 
+  function react(reactor: ActorId, skillId: SkillId, instanceId: string): void {
+    try {
+      combat = startReaction(combat, reactor, skillId, instanceId)
+      pushLog(`t${combat.timeline.tick}  ${reactor} reacts with ${skillId}`)
+    } catch (error) {
+      pushLog(`error: ${(error as Error).message}`)
+    }
+  }
+
+  function describeTransition(transition: Transition): string {
+    switch (transition.kind) {
+      case 'connect':
+      case 'end':
+        return `${transition.kind} ${transition.instanceId}`
+      case 'reaction':
+        return `reaction ${transition.actorId} -> ${transition.incomingInstanceId}`
+      case 'unlock':
+        return `unlock ${transition.actorId}`
+    }
+  }
+
   function applyNext(): void {
     const transition = nextTransition(combat)
     if (transition === null) {
@@ -59,7 +134,7 @@
       return
     }
     combat = applyTransition(combat, transition)
-    pushLog(`t${transition.tick}  ${transition.kind} ${transition.instanceId}`)
+    pushLog(`t${transition.tick}  ${describeTransition(transition)}`)
   }
 
   function advance(): void {
@@ -173,6 +248,32 @@
         {/if}
       </article>
     {/each}
+  </section>
+
+  <section class="panel">
+    <h2>Reactions</h2>
+    {#if reactionWindows.length === 0}
+      <p class="empty">none</p>
+    {:else}
+      {#each reactionWindows as window (window.instanceId)}
+        <div class="reaction">
+          <div>
+            <b>{window.reactor}</b> may react to <b>{window.skillId}</b> from {window.attacker}
+            (connect @{window.connectAt})
+          </div>
+          <div class="muted">{window.description}</div>
+          <div class="actions">
+            {#each window.options as option (option.skillId)}
+              <button onclick={() => react(window.reactor, option.skillId, window.instanceId)}>
+                {option.kind}:{option.skillId} @{option.connectsAt}{option.identified
+                  ? ' [read]'
+                  : ' [blind]'}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/each}
+    {/if}
   </section>
 
   <section class="panel">
