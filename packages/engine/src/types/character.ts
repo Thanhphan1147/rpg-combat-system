@@ -8,7 +8,6 @@ export interface CharacterTemplate {
 }
 
 export interface CharacterRuntime {
-  templateId: CharacterId
   pools: { hp: number }
   skillIds: SkillId[]
   cooldowns: Record<string, number>

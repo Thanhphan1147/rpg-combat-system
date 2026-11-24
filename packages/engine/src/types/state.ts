@@ -3,7 +3,6 @@ import type { ActorId, SkillId } from './ids'
 import type { Phase, SkillDef } from './skill'
 
 export type ActorSide = 'player' | 'enemy'
-export type CombatStatus = 'active' | 'ended'
 
 export interface TimelineSkill {
   instanceId: string
@@ -61,6 +60,6 @@ export interface CombatState {
   rules: Ruleset
   timeline: Timeline
   pending: PendingDecision | null
-  status: CombatStatus
+  status: 'active' | 'ended'
   winner: ActorId | null
 }

@@ -4,15 +4,6 @@ export type Phase = 'startup' | 'delivery' | 'ending'
 
 export type SkillKind = 'attack' | 'block' | 'dodge' | 'parry' | 'counter'
 
-export interface SkillArmor {
-  duringDelivery: boolean
-}
-
-export interface SkillDescription {
-  vague: string
-  precise: string
-}
-
 export interface SkillDef {
   id: SkillId
   name: string
@@ -22,6 +13,7 @@ export interface SkillDef {
   ending: number
   cooldown: number
   hitstun: number
-  descriptions: SkillDescription
-  armor: SkillArmor
+  armoredDuringDelivery: boolean
+  vagueDescription: string
+  preciseDescription: string
 }

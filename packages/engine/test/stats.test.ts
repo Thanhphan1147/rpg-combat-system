@@ -28,7 +28,7 @@ function createFixture() {
         id: actor,
         side: 'player',
         template,
-        runtime: { templateId: template.id, pools: { hp: 100 }, skillIds: [], cooldowns: {} },
+        runtime: { pools: { hp: 100 }, skillIds: [], cooldowns: {} },
       },
     },
     order: [actor],
