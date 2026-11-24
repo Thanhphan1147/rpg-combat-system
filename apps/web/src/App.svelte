@@ -23,7 +23,15 @@
     TimelineSkill,
   } from '@rpg/engine'
   import { NARRATION, rollEncounter } from '@rpg/content'
-  import type { Encounter } from '@rpg/content'
+  import {
+    applyVictory,
+    buildPlayer,
+    createRun,
+    loadEssence,
+    unloadEssence,
+    xpForNextLevel,
+  } from '@rpg/content'
+  import type { Encounter, Essence, RunState } from '@rpg/content'
 
   const STAT_ROWS = [
     { key: Stat.MaxHp, label: 'max hp' },
@@ -34,8 +42,16 @@
     { key: Stat.Perception, label: 'perception' },
   ] as const
 
-  function beginFight(excludeId?: string): { encounter: Encounter; combat: CombatState } {
-    const encounter = rollEncounter(undefined, excludeId)
+  const initialRun = createRun()
+  let run = $state<RunState>(initialRun)
+  let awarded = $state(false)
+  let selectedEssenceId = $state<string | null>(null)
+
+  function beginFight(
+    currentRun: RunState,
+    excludeId?: string,
+  ): { encounter: Encounter; combat: CombatState } {
+    const encounter = rollEncounter(undefined, excludeId, buildPlayer(currentRun))
     const combat = createCombat({
       content: encounter.content,
       rules: encounter.rules,
@@ -44,7 +60,7 @@
     return { encounter, combat }
   }
 
-  const opening = beginFight()
+  const opening = beginFight(initialRun)
   let encounter = $state<Encounter>(opening.encounter)
   let combat = $state<CombatState>(opening.combat)
   let logElement = $state<HTMLElement>()
@@ -52,6 +68,17 @@
 
   const prompt = $derived.by(() => getPrompt(combat))
   const ended = $derived.by(() => combat.outcome.status === 'ended')
+  const victory = $derived.by(() => {
+    if (combat.outcome.status !== 'ended') {
+      return false
+    }
+    const player = actorIdForSide('player')
+    return player !== undefined && combat.outcome.winner === player
+  })
+  const xpPercent = $derived.by(() => {
+    const needed = xpForNextLevel(run.level)
+    return needed > 0 ? Math.min(100, (run.xp / needed) * 100) : 0
+  })
   const freeActors = $derived.by(() => getFreeActors(combat))
   const playerHasInitiative = $derived.by(() => {
     const player = actorIdForSide('player')
@@ -95,6 +122,14 @@
     if (logElement) {
       logElement.scrollTop = logElement.scrollHeight
     }
+  })
+
+  $effect(() => {
+    if (!victory || awarded) {
+      return
+    }
+    awarded = true
+    run = applyVictory(run, encounter.id)
   })
 
   function actorName(id: ActorId): string {
@@ -349,11 +384,42 @@
     }
   }
 
-  function reset(): void {
-    const next = beginFight(encounter.id)
+  function keepFighting(): void {
+    awarded = false
+    selectedEssenceId = null
+    const next = beginFight(run, encounter.id)
     encounter = next.encounter
     combat = next.combat
     autoPlay()
+  }
+
+  function newRun(): void {
+    run = createRun()
+    awarded = false
+    selectedEssenceId = null
+    const next = beginFight(run)
+    encounter = next.encounter
+    combat = next.combat
+    autoPlay()
+  }
+
+  function selectEssence(id: string): void {
+    selectedEssenceId = selectedEssenceId === id ? null : id
+  }
+
+  function onSlot(index: number): void {
+    if (selectedEssenceId !== null) {
+      run = loadEssence(run, selectedEssenceId, index)
+      selectedEssenceId = null
+      return
+    }
+    run = unloadEssence(run, index)
+  }
+
+  function buffLine(essence: Essence): string {
+    return STAT_ROWS.filter((row) => (essence.buffs[row.key] ?? 0) !== 0)
+      .map((row) => `+${essence.buffs[row.key] ?? 0} ${row.label}`)
+      .join(' · ')
   }
 
   function formatTick(value: number): string {
@@ -377,6 +443,13 @@
 </button>
 
 <main class="story">
+  <div class="run-bar">
+    <span class="run-level">level {run.level}</span>
+    <div class="xp-track"><div class="xp-fill" style="width:{xpPercent}%"></div></div>
+    <span class="run-xp">{run.xp} / {xpForNextLevel(run.level)} xp</span>
+    <span class="run-slots">{run.slots.length} slot{run.slots.length === 1 ? '' : 's'}</span>
+  </div>
+
   {#if debug}
     <section class="debug">
       <div class="debug-stats">
@@ -442,7 +515,79 @@
 
   <section class="prompt">
     {#if ended}
-      <button onclick={reset}>Fight again</button>
+      {#if victory}
+        <section class="meta">
+          <div class="meta-head">
+            <span>victory</span>
+            <span>level {run.level}</span>
+          </div>
+          <p class="meta-line">
+            The goblin's essence remains. You have {run.slots.length} slot{run.slots.length === 1
+              ? ''
+              : 's'}.
+          </p>
+
+          <div class="slots">
+            {#each run.slots as slot, index (index)}
+              <button
+                class="slot"
+                class:filled={slot !== null}
+                class:target={selectedEssenceId !== null}
+                onclick={() => onSlot(index)}
+              >
+                <span class="slot-label">slot {index + 1}</span>
+                {#if slot}
+                  <span class="slot-essence">{slot.name}</span>
+                  <span class="slot-buffs">{buffLine(slot)}</span>
+                  <span class="slot-skill">grants {skillName(slot.skillId)}</span>
+                {:else}
+                  <span class="slot-empty">empty</span>
+                {/if}
+              </button>
+            {/each}
+          </div>
+
+          <div class="inventory">
+            <div class="inventory-head">essence reserve</div>
+            {#if run.essences.length === 0}
+              <p class="empty">Nothing in reserve.</p>
+            {:else}
+              {#each run.essences as essence (essence.id)}
+                <button
+                  class="essence"
+                  class:selected={selectedEssenceId === essence.id}
+                  onclick={() => selectEssence(essence.id)}
+                >
+                  <span class="essence-name">{essence.name}</span>
+                  <span class="essence-buffs">{buffLine(essence)}</span>
+                  <span class="essence-skill">grants {skillName(essence.skillId)}</span>
+                </button>
+              {/each}
+            {/if}
+            {#if selectedEssenceId !== null}
+              <p class="hint">Choose a slot to load it. Click it again to cancel.</p>
+            {:else if run.slots.some((slot) => slot !== null)}
+              <p class="hint">Click a filled slot to unload it.</p>
+            {/if}
+          </div>
+
+          <div class="meta-actions">
+            <button onclick={keepFighting}>Keep fighting</button>
+            <button class="ghost" onclick={newRun}>New run</button>
+          </div>
+        </section>
+      {:else}
+        <section class="meta">
+          <div class="meta-head">
+            <span>run over</span>
+            <span>level {run.level}</span>
+          </div>
+          <p class="meta-line">The wanderer falls. The run ends here.</p>
+          <div class="meta-actions">
+            <button onclick={newRun}>New run</button>
+          </div>
+        </section>
+      {/if}
     {:else if prompt !== null}
       {#if !isPlayer(prompt.actorId)}
         <button onclick={autoPlay}>Continue</button>

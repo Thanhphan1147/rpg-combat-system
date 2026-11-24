@@ -3,6 +3,7 @@ import type {
   CombatantConfig,
   ContentBundle,
   Ruleset,
+  SkillId,
   StatBlock,
 } from '@rpg/engine'
 import { characters, rollGoblin, wanderer } from './characters'
@@ -35,12 +36,27 @@ export interface GoblinArchetype {
   id: string
   name: string
   characterId: string
-  skillIds: string[]
+  skillIds: SkillId[]
   bias: Partial<StatBlock>
   opening: string
+  xp: number
+  essenceName: string
+  essenceBuffs: Partial<StatBlock>
 }
 
-const PLAYER_SKILLS = ['basic', 'slash', 'heavy', 'guard', 'dodge']
+/** The player's starting kit. Essences can add more skills on top of this. */
+export const BASE_PLAYER_SKILLS: SkillId[] = ['basic', 'slash', 'heavy', 'guard', 'dodge']
+
+/** The character template and loadout used for the player side of a fight. */
+export interface PlayerBuild {
+  character: CharacterTemplate
+  skillIds: SkillId[]
+}
+
+export const defaultPlayerBuild: PlayerBuild = {
+  character: wanderer,
+  skillIds: BASE_PLAYER_SKILLS,
+}
 
 export const goblinArchetypes: GoblinArchetype[] = [
   {
@@ -50,6 +66,9 @@ export const goblinArchetypes: GoblinArchetype[] = [
     skillIds: ['basic', 'stab', 'club', 'guard', 'dodge'],
     bias: {},
     opening: 'You face a goblin clubber in battle.',
+    xp: 100,
+    essenceName: 'Clubber Essence',
+    essenceBuffs: { maxHp: 120, attack: 8, defense: 6 },
   },
   {
     id: 'archer',
@@ -58,6 +77,9 @@ export const goblinArchetypes: GoblinArchetype[] = [
     skillIds: ['basic', 'snapShot', 'quickShot', 'aimedShot', 'dodge', 'guard'],
     bias: { speed: 1.3, reflex: 1.3, perception: 1.2, maxHp: 0.85, attack: 0.75, defense: 0.75 },
     opening: 'You face a goblin archer in battle.',
+    xp: 90,
+    essenceName: 'Archer Essence',
+    essenceBuffs: { speed: 12, reflex: 12, perception: 8, attack: 4 },
   },
   {
     id: 'berserker',
@@ -66,10 +88,17 @@ export const goblinArchetypes: GoblinArchetype[] = [
     skillIds: ['basic', 'headbutt', 'cleave', 'slam', 'brace'],
     bias: { maxHp: 1.3, attack: 1.3, defense: 1.1, speed: 0.95, reflex: 1.15, perception: 0.9 },
     opening: 'You face a goblin berserker in battle.',
+    xp: 120,
+    essenceName: 'Berserker Essence',
+    essenceBuffs: { maxHp: 160, attack: 12, defense: 4 },
   },
 ]
 
-function buildEncounter(archetype: GoblinArchetype, goblin: CharacterTemplate): Encounter {
+function buildEncounter(
+  archetype: GoblinArchetype,
+  goblin: CharacterTemplate,
+  player: PlayerBuild = defaultPlayerBuild,
+): Encounter {
   return {
     id: archetype.id,
     title: archetype.name,
@@ -82,11 +111,20 @@ function buildEncounter(archetype: GoblinArchetype, goblin: CharacterTemplate): 
     },
     content: {
       skills,
-      characters: { ...characters, [archetype.characterId]: goblin },
+      characters: {
+        ...characters,
+        [player.character.id]: player.character,
+        [archetype.characterId]: goblin,
+      },
     },
     rules: standardRules,
     combatants: [
-      { id: 'wanderer', side: 'player', characterId: 'wanderer', skillIds: PLAYER_SKILLS },
+      {
+        id: 'wanderer',
+        side: 'player',
+        characterId: player.character.id,
+        skillIds: player.skillIds,
+      },
       {
         id: 'goblin',
         side: 'enemy',
@@ -101,6 +139,7 @@ function buildEncounter(archetype: GoblinArchetype, goblin: CharacterTemplate): 
 export function rollEncounter(
   random: () => number = Math.random,
   excludeId?: string,
+  player: PlayerBuild = defaultPlayerBuild,
 ): Encounter {
   const pool =
     excludeId === undefined
@@ -113,7 +152,7 @@ export function rollEncounter(
     name: archetype.name,
     bias: archetype.bias,
   })
-  return buildEncounter(archetype, goblin)
+  return buildEncounter(archetype, goblin, player)
 }
 
 /** Static default (clubber) encounter, used by tests. */

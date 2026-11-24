@@ -1,5 +1,6 @@
 export * from './characters'
 export * from './encounter'
 export * from './narration'
+export * from './progression'
 export * from './rules'
 export * from './skills'

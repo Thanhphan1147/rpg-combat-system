@@ -226,3 +226,148 @@ button.ghost {
   margin: 0;
   color: #6f6a5e;
 }
+
+.run-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #6f6a5e;
+}
+
+.run-level {
+  color: #c9a45c;
+  text-transform: uppercase;
+}
+
+.run-slots {
+  white-space: nowrap;
+}
+
+.xp-track {
+  flex: 1;
+  height: 3px;
+  background: #161616;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.xp-fill {
+  height: 100%;
+  background: #6b5a35;
+  transition: width 180ms ease;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 48dvh;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.meta-head {
+  display: flex;
+  justify-content: space-between;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c9a45c;
+}
+
+.meta-line {
+  margin: 0;
+  color: #b8ae98;
+}
+
+.slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 6px;
+}
+
+.slot,
+.essence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 10px;
+  text-align: left;
+  line-height: 1.35;
+}
+
+.slot {
+  border-style: dashed;
+}
+
+.slot.filled {
+  border-style: solid;
+}
+
+.slot.target {
+  border-color: #4a4232;
+}
+
+.slot-label,
+.inventory-head {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f6a5e;
+}
+
+.slot-essence,
+.essence-name {
+  color: #e2dac8;
+}
+
+.slot-buffs,
+.essence-buffs {
+  font-size: 12px;
+  color: #8fa88a;
+}
+
+.slot-skill,
+.essence-skill {
+  font-size: 12px;
+  color: #9a9486;
+}
+
+.slot-empty {
+  color: #5b564c;
+}
+
+.inventory {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.essence {
+  border-left: 2px solid #3a352c;
+}
+
+.essence.selected {
+  border-color: #c9a45c;
+  color: #f4ecd8;
+}
+
+.hint,
+.empty {
+  margin: 0;
+  font-size: 12px;
+  color: #6f6a5e;
+}
+
+.meta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
