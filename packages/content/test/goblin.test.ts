@@ -27,6 +27,8 @@ describe('goblin encounter', () => {
       'goblin',
     ])
     expect(goblinEncounter.rules.block.incompleteMitigation).toBeGreaterThan(0)
+    expect(goblinEncounter.narration.opening).toContain('goblin')
+    expect(goblinEncounter.narration.playerInitiative.length).toBeGreaterThan(0)
   })
 
   it('rolls the goblin at 80% of the player total', () => {

@@ -3,6 +3,12 @@ import { characters, rollGoblin, wanderer } from './characters'
 import { standardRules } from './rules'
 import { skills } from './skills'
 
+export interface EncounterNarration {
+  opening: string
+  playerInitiative: string
+  enemyInitiative: string
+}
+
 /**
  * Everything the app needs to start one fight: the content bundle, the tuning
  * rules, the combatant loadouts, and the framing text.
@@ -10,6 +16,7 @@ import { skills } from './skills'
 export interface Encounter {
   id: string
   title: string
+  narration: EncounterNarration
   content: ContentBundle
   rules: Ruleset
   combatants: CombatantConfig[]
@@ -18,6 +25,11 @@ export interface Encounter {
 export const goblinEncounter: Encounter = {
   id: 'goblin-ambush',
   title: 'The Goblin Ambush',
+  narration: {
+    opening: 'You face a goblin in battle.',
+    playerInitiative: 'You seize the initiative.',
+    enemyInitiative: 'The goblin seizes the initiative.',
+  },
   content: { skills, characters },
   rules: standardRules,
   combatants: [

@@ -20,6 +20,7 @@
     TimelineSkill,
   } from '@rpg/engine'
   import { rollGoblinEncounter } from '@rpg/content'
+  import type { Encounter } from '@rpg/content'
 
   const PLAYER = 'wanderer'
   const GOBLIN = 'goblin'
@@ -33,28 +34,44 @@
     { key: Stat.Perception, label: 'perception' },
   ] as const
 
-  function fresh(): CombatState {
+  function beginFight(): { encounter: Encounter; combat: CombatState } {
     const encounter = rollGoblinEncounter()
-    return createCombat({
+    const combat = createCombat({
       content: encounter.content,
       rules: encounter.rules,
       combatants: encounter.combatants,
     })
+    return { encounter, combat }
   }
 
-  let combat = $state<CombatState>(fresh())
+  const opening = beginFight()
+  let encounter = $state<Encounter>(opening.encounter)
+  let combat = $state<CombatState>(opening.combat)
   let logElement = $state<HTMLElement>()
   let debug = $state(false)
 
   const prompt = $derived.by(() => getPrompt(combat))
   const ended = $derived.by(() => combat.outcome.status === 'ended')
   const freeActors = $derived.by(() => getFreeActors(combat))
-  const narration = $derived.by(() =>
-    combat.log
+  const playerHasInitiative = $derived.by(
+    () =>
+      getEffectiveStat(combat, PLAYER, Stat.Speed) >=
+      getEffectiveStat(combat, GOBLIN, Stat.Speed),
+  )
+  const narration = $derived.by(() => {
+    const preamble = [encounter.narration.opening]
+    const initiative = playerHasInitiative
+      ? encounter.narration.playerInitiative
+      : encounter.narration.enemyInitiative
+    if (initiative.length > 0) {
+      preamble.push(initiative)
+    }
+    const events = combat.log
       .filter((entry) => entry.event.kind !== 'combatStart')
       .map((entry) => narrate(entry))
-      .filter((line) => line.length > 0),
-  )
+      .filter((line) => line.length > 0)
+    return [...preamble, ...events]
+  })
 
   const timelineWindow = $derived.by(() => {
     const ticks = [combat.timeline.tick]
@@ -216,7 +233,9 @@
   }
 
   function reset(): void {
-    combat = fresh()
+    const next = beginFight()
+    encounter = next.encounter
+    combat = next.combat
     autoPlay()
   }
 
