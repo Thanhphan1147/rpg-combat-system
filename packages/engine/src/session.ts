@@ -17,6 +17,7 @@ import {
   advanceUntilDecision,
   applyTransition,
   getFreeActors,
+  hasUnresolvedAttack,
   nextTransition,
   skillConnectAt,
 } from './timeline'
@@ -124,6 +125,9 @@ export function getPrompt(state: CombatState): Prompt | null {
   const reaction = reactionPrompt(state)
   if (reaction !== null) {
     return reaction
+  }
+  if (hasUnresolvedAttack(state)) {
+    return null
   }
   const actorId = nextFreeActor(state)
   return actorId === undefined ? null : actionPrompt(state, actorId)

@@ -225,18 +225,35 @@ export function hasReactionOpportunity(state: CombatState): boolean {
 }
 
 /**
- * Whether the engine is waiting on input: a reaction window is open, an actor is
- * free to act, or a pending decision exists.
+ * Whether an attack is still in flight. While one is, an exchange is in
+ * progress: free actors wait for the reaction window or the hit, and cannot
+ * start a new action.
+ */
+export function hasUnresolvedAttack(state: CombatState): boolean {
+  return state.timeline.active.some((skill) => {
+    if (skill.resolved) {
+      return false
+    }
+    const definition = state.content.skills[skill.skillId]
+    return definition?.kind === 'attack'
+  })
+}
+
+/**
+ * Whether the engine is waiting on input: a reaction window is open, or an actor
+ * is free to act *outside* an ongoing exchange.
  */
 export function isDecisionPoint(state: CombatState): boolean {
   if (state.outcome.status === 'ended') {
     return false
   }
-  return (
-    state.pending !== null ||
-    getFreeActors(state).length > 0 ||
-    hasReactionOpportunity(state)
-  )
+  if (state.pending !== null || hasReactionOpportunity(state)) {
+    return true
+  }
+  if (hasUnresolvedAttack(state)) {
+    return false
+  }
+  return getFreeActors(state).length > 0
 }
 
 /**

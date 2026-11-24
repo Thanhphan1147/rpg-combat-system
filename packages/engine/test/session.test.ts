@@ -100,11 +100,16 @@ describe('session prompts', () => {
     expect(prompt?.actorId).toBe('a')
   })
 
-  it('steps an action and prompts the other free actor', () => {
-    const next = step(makeCombat(), { kind: 'act', skillId: 'jab' })
-    const prompt = getPrompt(next)
+  it('does not prompt the defender while an attack is unresolved', () => {
+    const state = startSkill(makeCombat(), 'a', 'jab', 'b')
+    expect(getPrompt(state)).toBeNull()
+  })
+
+  it('prompts the tempo holder after the exchange resolves', () => {
+    const state = step(makeCombat(), { kind: 'act', skillId: 'jab' })
+    const prompt = getPrompt(state)
     expect(prompt?.kind).toBe('action')
-    expect(prompt?.actorId).toBe('b')
+    expect(prompt?.actorId).toBe('a')
   })
 
   it('offers a reaction prompt at the reflex window', () => {
