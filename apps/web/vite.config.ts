@@ -1,11 +1,16 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
-export default defineConfig({
-  plugins: [svelte()],
-  server: {
-    fs: {
-      allow: ['../..'],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', '')
+
+  return {
+    base: env.BASE_PATH || '/',
+    plugins: [svelte()],
+    server: {
+      fs: {
+        allow: ['../..'],
+      },
     },
-  },
+  }
 })
