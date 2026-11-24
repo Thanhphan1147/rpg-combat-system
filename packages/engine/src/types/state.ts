@@ -1,4 +1,5 @@
 import type { CharacterRuntime, CharacterTemplate } from './character'
+import type { CombatLogEntry } from './events'
 import type { ActorId, CharacterId, InstanceId, SkillId } from './ids'
 import type { SkillDef } from './skill'
 
@@ -63,4 +64,5 @@ export interface CombatState {
   timeline: Timeline
   pending: PendingDecision | null
   outcome: CombatOutcome
+  log: CombatLogEntry[]
 }

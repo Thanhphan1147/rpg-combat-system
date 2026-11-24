@@ -1,8 +1,10 @@
 import type { ActorId, InstanceId } from './types/ids'
+import type { CombatEvent } from './types/events'
 import type { CombatState, TimelineSkill } from './types/state'
 import type { SkillDef } from './types/skill'
 import { Stat } from './types/stats'
 import { getEffectiveStat } from './stats'
+import { emit } from './log'
 
 function skillDefinitionOf(state: CombatState, skillId: string): SkillDef | undefined {
   return state.content.skills[skillId]
@@ -45,6 +47,13 @@ function applyDamage(state: CombatState, targetId: ActorId, amount: number): Com
   }
   const winner = state.roster.find((id) => id !== targetId) ?? targetId
   return { ...withHp, outcome: { status: 'ended', winner } }
+}
+
+function withEnd(previous: CombatState, next: CombatState): CombatState {
+  if (previous.outcome.status === 'active' && next.outcome.status === 'ended') {
+    return emit(next, { kind: 'combatEnd', winner: next.outcome.winner })
+  }
+  return next
 }
 
 function lockUntil(
@@ -122,7 +131,20 @@ function resolveCounter(
   if (inStartup) {
     next = lockUntil(next, attack.actorId, 'staggeredUntil', at + next.rules.startupCounter.stagger)
   }
-  return removeInstance(next, attack.instanceId)
+  next = removeInstance(next, attack.instanceId)
+  next = emit(next, {
+    kind: 'countered',
+    actorId: counter.actorId,
+    targetActorId: attack.actorId,
+    skillId: counter.skillId,
+    targetSkillId: attack.skillId,
+    damage,
+    clean: inStartup,
+  })
+  if (inStartup) {
+    next = emit(next, { kind: 'staggered', actorId: attack.actorId })
+  }
+  return withEnd(state, next)
 }
 
 function resolveAttack(
@@ -160,7 +182,31 @@ function resolveAttack(
     return connectAtOf(state, reaction) <= at
   })
   if (defence !== undefined) {
-    return state
+    const kind = skillDefinitionOf(state, defence.skillId)?.kind
+    const event: CombatEvent =
+      kind === 'dodge'
+        ? {
+            kind: 'dodged',
+            actorId: attack.actorId,
+            targetActorId: targetId,
+            skillId: attack.skillId,
+          }
+        : kind === 'parry'
+          ? {
+              kind: 'parried',
+              actorId: attack.actorId,
+              targetActorId: targetId,
+              skillId: attack.skillId,
+            }
+          : {
+              kind: 'blocked',
+              actorId: attack.actorId,
+              targetActorId: targetId,
+              skillId: attack.skillId,
+              damage: 0,
+              complete: true,
+            }
+    return emit(state, event)
   }
 
   const raw = damageFor(state, attack.actorId, targetId, attackDefinition.power)
@@ -169,20 +215,38 @@ function resolveAttack(
   )
 
   let next = state
+  let damage = raw
   if (lateBlock !== undefined) {
-    const mitigation = state.rules.block.incompleteMitigation
-    next = applyDamage(next, targetId, Math.max(1, Math.ceil(raw * (1 - mitigation))))
-  } else {
-    next = applyDamage(next, targetId, raw)
+    damage = Math.max(1, Math.ceil(raw * (1 - state.rules.block.incompleteMitigation)))
   }
-  return lockUntil(next, targetId, 'hitstunUntil', at + attackDefinition.hitstun)
+  next = applyDamage(next, targetId, damage)
+  next = lockUntil(next, targetId, 'hitstunUntil', at + attackDefinition.hitstun)
+
+  const event: CombatEvent =
+    lateBlock !== undefined
+      ? {
+          kind: 'blocked',
+          actorId: attack.actorId,
+          targetActorId: targetId,
+          skillId: attack.skillId,
+          damage,
+          complete: false,
+        }
+      : {
+          kind: 'hit',
+          actorId: attack.actorId,
+          targetActorId: targetId,
+          skillId: attack.skillId,
+          damage,
+        }
+  return withEnd(state, emit(next, event))
 }
 
 /**
  * Resolves the effects of a skill reaching its connect tick. Attacks deal
  * damage (or are blocked/dodged/parried), counters interrupt their target, and
  * pure defence reactions have no connect-time effect of their own. Returns a
- * new state.
+ * new state with narration events appended.
  */
 export function resolveConnect(state: CombatState, instanceId: InstanceId): CombatState {
   const instance = state.timeline.active.find((active) => active.instanceId === instanceId)

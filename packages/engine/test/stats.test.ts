@@ -43,6 +43,7 @@ function createFixture() {
     timeline: { tick: 0, nextInstanceId: 1, active: [] },
     pending: null,
     outcome: { status: 'active' },
+    log: [],
   }
   return { state, actor }
 }

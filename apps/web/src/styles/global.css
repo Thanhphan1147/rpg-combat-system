@@ -6,183 +6,128 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  background: #050505;
-  color: #d6d6d6;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.55;
+}
+
+body {
+  background: #070707;
+  color: #d8d2c4;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-size: 17px;
+  line-height: 1.7;
 }
 
 #app {
-  max-width: 1100px;
+  min-height: 100vh;
+}
+
+.story {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 100vh;
+  max-width: 720px;
   margin: 0 auto;
-  padding: 24px 20px 64px;
+  padding: 40px 24px 28px;
 }
 
-h1 {
+.masthead h1 {
   margin: 0;
-  font-size: 18px;
-  letter-spacing: 0.04em;
-  color: #f0f0f0;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #f0e9d8;
 }
 
-h2 {
-  margin: 0 0 8px;
-  font-size: 13px;
+.bars {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #9a9a9a;
+  color: #8a8172;
 }
 
-header {
+.fighter {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #222;
-  margin-bottom: 20px;
+  gap: 8px;
 }
 
-.meta {
-  display: flex;
-  gap: 18px;
-  color: #8f8f8f;
+.hp {
+  color: #c9a45c;
 }
 
-.meta b {
-  color: #f0f0f0;
+.narration {
+  flex: 1;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
 }
 
-b.active,
-.active {
-  color: #7ee787;
+.narration p {
+  margin: 0 0 14px;
+  color: #cfc8b8;
 }
 
-.actions {
+.narration p:first-child {
+  color: #e2dac8;
+}
+
+.prompt {
+  border-top: 1px solid #242424;
+  padding-top: 16px;
+}
+
+.prompt h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8a8172;
+}
+
+.incoming {
+  margin: 0 0 12px;
+  color: #b8ae98;
+  font-style: italic;
+}
+
+.options {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
 button {
-  background: #111;
-  color: #e6e6e6;
-  border: 1px solid #333;
-  border-radius: 4px;
-  padding: 4px 10px;
+  background: transparent;
+  color: #e8e0cf;
+  border: 1px solid #3a352c;
+  border-radius: 3px;
+  padding: 8px 14px;
   font: inherit;
+  font-size: 15px;
   cursor: pointer;
 }
 
 button:hover {
-  border-color: #666;
-  background: #1a1a1a;
+  border-color: #c9a45c;
+  color: #f4ecd8;
 }
 
-.panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
+button.ghost {
+  color: #8a8172;
+  border-color: #2a2a2a;
 }
 
-.panel {
-  border: 1px solid #222;
-  border-radius: 6px;
-  padding: 14px;
-  background: #0a0a0a;
-  margin-bottom: 16px;
-}
-
-dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 2px 12px;
-  margin: 0 0 10px;
-}
-
-dt {
-  color: #6f6f6f;
-}
-
-dd {
-  margin: 0;
-  color: #e0e0e0;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.tag {
-  border: 1px solid #2c2c2c;
-  border-radius: 999px;
-  padding: 1px 8px;
-  color: #b9b9b9;
-  font-size: 12px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-th,
-td {
-  text-align: left;
-  padding: 4px 8px;
-  border-bottom: 1px solid #1c1c1c;
-}
-
-th {
-  color: #7d7d7d;
-  font-weight: normal;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-pre {
-  margin: 0;
-  padding: 10px;
-  background: #0f0f0f;
-  border: 1px solid #1f1f1f;
-  border-radius: 4px;
-  overflow-x: auto;
-  color: #b7d7b7;
-}
-
-.empty {
-  color: #666;
-  margin: 0;
-}
-
-.log {
-  margin: 0;
-  padding-left: 20px;
-  color: #a8a8a8;
-}
-
-.log li {
-  border-bottom: 1px solid #141414;
-  padding: 2px 0;
-}
-
-.reaction {
-  border: 1px solid #1f1f1f;
-  border-radius: 4px;
-  padding: 10px;
-  margin-bottom: 10px;
-}
-
-.muted {
-  color: #8a8a8a;
-  margin: 4px 0 8px;
+.outcome {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: #e8e0cf;
 }

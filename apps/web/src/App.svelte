@@ -1,339 +1,226 @@
 <script lang="ts">
-  import {
-    advanceUntilDecision,
-    applyTransition,
-    canReact,
-    createCombat,
-    getEffectiveStat,
-    getFreeActors,
-    getMaxHp,
-    getPerceptionView,
-    getReactionOptions,
-    isDecisionPoint,
-    nextTransition,
-    reactionAt,
-    reactionDelay,
-    skillConnectAt,
-    startReaction,
-    startSkill,
-    Stat,
-  } from '@rpg/engine'
+  import { createCombat, getPrompt, snapshot, step } from '@rpg/engine'
   import type {
     ActorId,
+    CombatLogEntry,
     CombatState,
-    Phase,
-    ReactionOption,
+    Intent,
+    Prompt,
+    ReactionPrompt,
     SkillId,
-    TimelineSkill,
-    Transition,
   } from '@rpg/engine'
-  import { sampleContent, sampleRules } from '@rpg/content'
+  import { goblinEncounter } from '@rpg/content'
 
-  const combatants = [
-    { id: 'hero', side: 'player' as const, characterId: 'hero', skillIds: ['jab', 'heavy', 'guard'] },
-    { id: 'foe', side: 'enemy' as const, characterId: 'foe', skillIds: ['jab', 'heavy', 'guard'] },
-  ]
+  const PLAYER = 'wanderer'
+  const GOBLIN = 'goblin'
 
   function fresh(): CombatState {
-    return createCombat({ content: sampleContent(), rules: sampleRules, combatants })
+    return createCombat({
+      content: goblinEncounter.content,
+      rules: goblinEncounter.rules,
+      combatants: goblinEncounter.combatants,
+    })
   }
 
   let combat = $state<CombatState>(fresh())
-  let log = $state<string[]>([])
+  let logElement = $state<HTMLElement>()
 
-  const freeActors = $derived.by(() => getFreeActors(combat))
-  const decision = $derived.by(() => isDecisionPoint(combat))
-  const nextT = $derived.by(() => nextTransition(combat))
+  const prompt = $derived.by(() => getPrompt(combat))
+  const view = $derived.by(() => snapshot(combat))
+  const playerView = $derived.by(() => view.actors.find((actor) => actor.id === PLAYER))
+  const goblinView = $derived.by(() => view.actors.find((actor) => actor.id === GOBLIN))
+  const ended = $derived.by(() => combat.outcome.status === 'ended')
+  const won = $derived.by(
+    () => combat.outcome.status === 'ended' && combat.outcome.winner === PLAYER,
+  )
 
-  interface ReactionWindowView {
-    instanceId: string
-    attacker: ActorId
-    skillId: SkillId
-    reactor: ActorId
-    connectAt: number
-    description: string
-    options: ReactionOption[]
-  }
+  const narration = $derived.by(() =>
+    combat.log.map((entry) => narrate(entry)).filter((line) => line.length > 0),
+  )
 
-  const reactionWindows = $derived.by(() => {
-    const windows: ReactionWindowView[] = []
-    for (const instance of combat.timeline.active) {
-      if (instance.resolved || instance.reactingToInstanceId !== null) {
-        continue
-      }
-      const skillDefinition = combat.content.skills[instance.skillId]
-      if (skillDefinition?.kind !== 'attack') {
-        continue
-      }
-      const reactor = combat.roster.find((id) => id !== instance.actorId)
-      if (reactor === undefined || !canReact(combat, reactor, instance)) {
-        continue
-      }
-      const options = getReactionOptions(combat, reactor, instance)
-      if (options.length === 0) {
-        continue
-      }
-      windows.push({
-        instanceId: instance.instanceId,
-        attacker: instance.actorId,
-        skillId: instance.skillId,
-        reactor,
-        connectAt: skillConnectAt(combat, instance),
-        description: getPerceptionView(combat, reactor, instance).description,
-        options,
-      })
+  $effect(() => {
+    combat.log.length
+    if (logElement) {
+      logElement.scrollTop = logElement.scrollHeight
     }
-    return windows
   })
 
-  function pushLog(message: string): void {
-    log = [message, ...log].slice(0, 80)
+  function actorName(id: ActorId): string {
+    const actor = combat.actors[id]
+    return actor ? (combat.content.characters[actor.characterId]?.name ?? id) : id
   }
 
-  function opponentOf(actorId: ActorId): ActorId | undefined {
-    return combat.roster.find((id) => id !== actorId)
+  function skillName(id: SkillId): string {
+    return combat.content.skills[id]?.name ?? id
   }
 
-  function act(actorId: ActorId, skillId: SkillId): void {
-    const skillDefinition = combat.content.skills[skillId]
+  function narrate(entry: CombatLogEntry): string {
+    const { event } = entry
+    switch (event.kind) {
+      case 'combatStart':
+        return goblinEncounter.intro
+      case 'skillUsed':
+        return event.actorId === PLAYER
+          ? `You commit to a ${skillName(event.skillId)}.`
+          : `The ${actorName(event.actorId)} winds up a ${skillName(event.skillId)}.`
+      case 'reactionUsed':
+        return event.actorId === PLAYER
+          ? `You answer with a ${skillName(event.skillId)}.`
+          : `The ${actorName(event.actorId)} answers with a ${skillName(event.skillId)}.`
+      case 'hit':
+        return event.targetActorId === PLAYER
+          ? `The ${actorName(event.actorId)}'s ${skillName(event.skillId)} catches you for ${event.damage}.`
+          : `Your ${skillName(event.skillId)} bites into the ${actorName(event.targetActorId)} for ${event.damage}.`
+      case 'blocked':
+        if (event.complete) {
+          return event.targetActorId === PLAYER
+            ? `You turn the ${skillName(event.skillId)} aside on your guard.`
+            : `The ${actorName(event.targetActorId)} blocks your ${skillName(event.skillId)} cleanly.`
+        }
+        return event.targetActorId === PLAYER
+          ? `Your guard comes a beat late — ${event.damage} gets through.`
+          : `The ${actorName(event.targetActorId)}'s guard is late — ${event.damage} gets through.`
+      case 'dodged':
+        return event.targetActorId === PLAYER
+          ? `You slip aside from the ${skillName(event.skillId)}.`
+          : `The ${actorName(event.targetActorId)} slips aside from your ${skillName(event.skillId)}.`
+      case 'parried':
+        return event.targetActorId === PLAYER
+          ? `You parry the ${skillName(event.skillId)} with a sharp turn of the wrist.`
+          : `The ${actorName(event.targetActorId)} parries your ${skillName(event.skillId)}.`
+      case 'countered': {
+        const reader = event.actorId === PLAYER ? 'You read' : `The ${actorName(event.actorId)} reads`
+        const verb = event.actorId === PLAYER ? 'counter' : 'counters'
+        const clean = event.clean ? ' — a clean read!' : ''
+        return `${reader} the ${skillName(event.targetSkillId)} and ${verb} for ${event.damage}${clean}.`
+      }
+      case 'staggered':
+        return event.actorId === PLAYER
+          ? 'You stagger, reeling.'
+          : `The ${actorName(event.actorId)} staggers, reeling.`
+      case 'combatEnd':
+        return event.winner === PLAYER
+          ? 'The goblin folds to the wet stones and moves no more.'
+          : 'Your knees give way. The dark closes in.'
+    }
+  }
+
+  function chooseGoblinIntent(current: Prompt): Intent {
+    if (current.kind === 'reaction') {
+      const guard = current.options.find((option) => option.kind === 'block')
+      return guard ? { kind: 'react', skillId: guard.skillId } : { kind: 'pass' }
+    }
+    const attacks = current.options.filter((option) => option.kind === 'attack')
+    const pool = attacks.length > 0 ? attacks : current.options
+    const choice = pool[Math.floor(Math.random() * pool.length)]
+    return choice ? { kind: 'act', skillId: choice.skillId } : { kind: 'pass' }
+  }
+
+  function autoPlay(): void {
+    let safety = 0
+    while (safety < 200) {
+      safety += 1
+      const current = getPrompt(combat)
+      if (current === null || current.actorId !== GOBLIN) {
+        return
+      }
+      combat = step(combat, chooseGoblinIntent(current))
+    }
+  }
+
+  function act(skillId: SkillId): void {
     try {
-      const target =
-        skillDefinition?.targeting === 'opponent' ? opponentOf(actorId) : undefined
-      combat = startSkill(combat, actorId, skillId, target)
-      pushLog(`t${combat.timeline.tick}  ${actorId} starts ${skillId}`)
+      combat = step(combat, { kind: 'act', skillId })
+      autoPlay()
     } catch (error) {
-      pushLog(`error: ${(error as Error).message}`)
+      console.error(error)
     }
   }
 
-  function react(reactor: ActorId, skillId: SkillId, instanceId: string): void {
+  function react(skillId: SkillId): void {
     try {
-      combat = startReaction(combat, reactor, skillId, instanceId)
-      pushLog(`t${combat.timeline.tick}  ${reactor} reacts with ${skillId}`)
+      combat = step(combat, { kind: 'react', skillId })
+      autoPlay()
     } catch (error) {
-      pushLog(`error: ${(error as Error).message}`)
+      console.error(error)
     }
   }
 
-  function describeTransition(transition: Transition): string {
-    switch (transition.kind) {
-      case 'connect':
-      case 'end':
-        return `${transition.kind} ${transition.instanceId}`
-      case 'reaction':
-        return `reaction ${transition.actorId} -> ${transition.incomingInstanceId}`
-      case 'unlock':
-        return `unlock ${transition.actorId}`
+  function takeIt(): void {
+    try {
+      combat = step(combat, { kind: 'pass' })
+      autoPlay()
+    } catch (error) {
+      console.error(error)
     }
-  }
-
-  function applyNext(): void {
-    const transition = nextTransition(combat)
-    if (transition === null) {
-      pushLog('no scheduled transition')
-      return
-    }
-    combat = applyTransition(combat, transition)
-    pushLog(`t${transition.tick}  ${describeTransition(transition)}`)
-  }
-
-  function advance(): void {
-    const before = combat.timeline.tick
-    combat = advanceUntilDecision(combat)
-    pushLog(`advance ${before} -> ${combat.timeline.tick}`)
   }
 
   function reset(): void {
     combat = fresh()
-    log = []
+    autoPlay()
   }
 
-  function startupEndOf(skill: TimelineSkill): number {
-    const skillDefinition = combat.content.skills[skill.skillId]
-    return skillDefinition === undefined
-      ? Number.NaN
-      : skill.startedAt + skillDefinition.startup
+  function health(actor: { hp: number; maxHp: number } | undefined): string {
+    return actor ? `${actor.hp} / ${actor.maxHp}` : '—'
   }
 
-  function connectAtOf(skill: TimelineSkill): number {
-    const skillDefinition = combat.content.skills[skill.skillId]
-    return skillDefinition === undefined
-      ? Number.NaN
-      : skill.startedAt + skillDefinition.startup + skillDefinition.delivery
-  }
-
-  function phaseOf(skill: TimelineSkill): Phase | 'done' {
-    if (skill.resolved) {
-      return combat.timeline.tick < skill.endingEndsAt ? 'ending' : 'done'
+  function incomingLine(current: ReactionPrompt): string {
+    const skill = current.incoming.skillId
+    if (current.incoming.identified) {
+      const precise = combat.content.skills[skill]?.preciseDescription ?? ''
+      return `You read the windup. ${precise}`
     }
-    if (combat.timeline.tick < startupEndOf(skill)) {
-      return 'startup'
-    }
-    if (combat.timeline.tick < connectAtOf(skill)) {
-      return 'delivery'
-    }
-    return 'ending'
-  }
-
-  function reactorOf(skill: TimelineSkill): ActorId | undefined {
-    return combat.roster.find((id) => id !== skill.actorId)
-  }
-
-  function reactAtOf(skill: TimelineSkill): number | null {
-    const reactor = reactorOf(skill)
-    if (reactor === undefined) {
-      return null
-    }
-    const reflex = getEffectiveStat(combat, reactor, Stat.Reflex)
-    return reactionAt(skill.startedAt, reflex, combat.rules)
+    const vague = combat.content.skills[skill]?.vagueDescription ?? 'Something is coming.'
+    return `You catch only a glimpse: ${vague}`
   }
 </script>
 
-<main>
-  <header>
-    <h1>Combat Debug</h1>
-    <div class="meta">
-      <span>tick <b>{combat.timeline.tick}</b></span>
-      <span>outcome <b>{combat.outcome.status}</b></span>
-      <span>decision <b class:active={decision}>{decision ? 'yes' : 'no'}</b></span>
-    </div>
-    <div class="actions">
-      <button onclick={reset}>reset</button>
-      <button onclick={applyNext}>apply next transition</button>
-      <button onclick={advance}>advance to decision</button>
+<main class="story">
+  <header class="masthead">
+    <h1>{goblinEncounter.title}</h1>
+    <div class="bars">
+      <div class="fighter">
+        <span>{playerView?.name ?? 'You'}</span>
+        <span class="hp">{health(playerView)}</span>
+      </div>
+      <div class="fighter">
+        <span>{goblinView?.name ?? 'Goblin'}</span>
+        <span class="hp">{health(goblinView)}</span>
+      </div>
     </div>
   </header>
 
-  <section class="panels">
-    {#each combat.roster as actorId}
-      <article class="panel">
-        <h2>{actorId}</h2>
-        <dl>
-          <dt>side</dt>
-          <dd>{combat.actors[actorId]?.side}</dd>
-          <dt>hp</dt>
-          <dd>{combat.actors[actorId]?.runtime.hp} / {getMaxHp(combat, actorId)}</dd>
-          <dt>free</dt>
-          <dd class:active={freeActors.includes(actorId)}>
-            {freeActors.includes(actorId) ? 'yes' : 'no'}
-          </dd>
-          <dt>hitstun</dt>
-          <dd>{combat.actors[actorId]?.runtime.hitstunUntil}</dd>
-          <dt>stagger</dt>
-          <dd>{combat.actors[actorId]?.runtime.staggeredUntil}</dd>
-          <dt>reflex</dt>
-          <dd>{getEffectiveStat(combat, actorId, Stat.Reflex)}</dd>
-          <dt>react delay</dt>
-          <dd>{reactionDelay(getEffectiveStat(combat, actorId, Stat.Reflex), combat.rules)}</dd>
-        </dl>
-
-        <div class="tags">
-          {#each Object.entries(combat.actors[actorId]?.runtime.cooldownEndsAt ?? {}) as [skillId, readyAt]}
-            <span class="tag">{skillId}@{readyAt}</span>
-          {/each}
-        </div>
-
-        <div class="tags">
-          {#each combat.timeline.active.filter((skill) => skill.actorId === actorId) as skill (skill.instanceId)}
-            <span class="tag">{skill.skillId} · {phaseOf(skill)}</span>
-          {/each}
-        </div>
-
-        {#if freeActors.includes(actorId)}
-          <div class="actions">
-            {#each combat.actors[actorId]?.runtime.skillIds ?? [] as skillId}
-              <button onclick={() => act(actorId, skillId)}>{skillId}</button>
-            {/each}
-          </div>
-        {/if}
-      </article>
+  <section class="narration" bind:this={logElement}>
+    {#each narration as line}
+      <p>{line}</p>
     {/each}
   </section>
 
-  <section class="panel">
-    <h2>Reactions</h2>
-    {#if reactionWindows.length === 0}
-      <p class="empty">none</p>
+  <section class="prompt">
+    {#if ended}
+      <p class="outcome">{won ? 'Victory.' : 'You fall.'}</p>
+      <button onclick={reset}>Fight again</button>
+    {:else if prompt === null}
+      <p class="outcome">The world holds its breath.</p>
+    {:else if prompt.actorId !== PLAYER}
+      <p class="outcome">The goblin hesitates.</p>
+      <button onclick={autoPlay}>Continue</button>
+    {:else if prompt.kind === 'action'}
+      <h2>Your move</h2>
+      <div class="options">
+        {#each prompt.options as option (option.skillId)}
+          <button onclick={() => act(option.skillId)}>{option.label}</button>
+        {/each}
+      </div>
     {:else}
-      {#each reactionWindows as window (window.instanceId)}
-        <div class="reaction">
-          <div>
-            <b>{window.reactor}</b> may react to <b>{window.skillId}</b> from {window.attacker}
-            (connect @{window.connectAt})
-          </div>
-          <div class="muted">{window.description}</div>
-          <div class="actions">
-            {#each window.options as option (option.skillId)}
-              <button onclick={() => react(window.reactor, option.skillId, window.instanceId)}>
-                {option.kind}:{option.skillId} @{option.connectsAt}{option.identified
-                  ? ' [read]'
-                  : ' [blind]'}
-              </button>
-            {/each}
-          </div>
-        </div>
-      {/each}
+      <h2>React</h2>
+      <p class="incoming">{incomingLine(prompt)}</p>
+      <div class="options">
+        {#each prompt.options as option (option.skillId)}
+          <button onclick={() => react(option.skillId)}>{option.label}</button>
+        {/each}
+        <button class="ghost" onclick={takeIt}>Take it</button>
+      </div>
     {/if}
-  </section>
-
-  <section class="panel">
-    <h2>Active skills</h2>
-    {#if combat.timeline.active.length === 0}
-      <p class="empty">none</p>
-    {:else}
-      <table>
-        <thead>
-          <tr>
-            <th>id</th>
-            <th>actor</th>
-            <th>skill</th>
-            <th>phase</th>
-            <th>start</th>
-            <th>connect</th>
-            <th>end</th>
-            <th>resolved</th>
-            <th>target</th>
-            <th>reacts</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each combat.timeline.active as skill (skill.instanceId)}
-            {@const reactAt = reactAtOf(skill)}
-            <tr>
-              <td>{skill.instanceId}</td>
-              <td>{skill.actorId}</td>
-              <td>{skill.skillId}</td>
-              <td>{phaseOf(skill)}</td>
-              <td>{skill.startedAt}</td>
-              <td>{connectAtOf(skill)}</td>
-              <td>{skill.endingEndsAt}</td>
-              <td>{skill.resolved ? 'yes' : 'no'}</td>
-              <td>{skill.targetActorId ?? '—'}</td>
-              <td>
-                {#if reactAt === null}
-                  —
-                {:else}
-                  <span class:active={combat.timeline.tick >= reactAt}>{reactAt}</span>
-                {/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {/if}
-  </section>
-
-  <section class="panel">
-    <h2>Next decision</h2>
-    <pre>{JSON.stringify({ decision, freeActors, nextTransition: nextT, pending: combat.pending }, null, 2)}</pre>
-  </section>
-
-  <section class="panel">
-    <h2>Log</h2>
-    <ol class="log">
-      {#each log as entry}
-        <li>{entry}</li>
-      {/each}
-    </ol>
   </section>
 </main>

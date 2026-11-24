@@ -3,6 +3,7 @@ import type { SkillDef } from './types/skill'
 import type { ActorSide, CombatActor, CombatState, ContentBundle, Ruleset, TimelineSkill } from './types/state'
 import { Stat } from './types/stats'
 import { getFreeActors } from './timeline'
+import { emit } from './log'
 
 /**
  * Configuration for one actor entering combat. `skillIds` is the actor's current
@@ -54,7 +55,7 @@ export function createCombat(config: CreateCombatConfig): CombatState {
     roster.push(combatant.id)
   }
 
-  return {
+  const state: CombatState = {
     actors,
     roster,
     content: config.content,
@@ -62,7 +63,10 @@ export function createCombat(config: CreateCombatConfig): CombatState {
     timeline: { tick: 0, nextInstanceId: 1, active: [] },
     pending: null,
     outcome: { status: 'active' },
+    log: [],
   }
+
+  return emit(state, { kind: 'combatStart', actors: roster })
 }
 
 /**
@@ -113,7 +117,7 @@ export function startSkill(
     resolved: false,
   }
 
-  return {
+  const next: CombatState = {
     ...state,
     actors: {
       ...state.actors,
@@ -134,6 +138,8 @@ export function startSkill(
       active: [...state.timeline.active, instance],
     },
   }
+
+  return emit(next, { kind: 'skillUsed', actorId, skillId })
 }
 
 function resolveTarget(

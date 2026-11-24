@@ -5,6 +5,7 @@ import { Stat } from './types/stats'
 import { getEffectiveStat } from './stats'
 import { getPerceptionView } from './perception'
 import { reactionAt } from './reflex'
+import { emit } from './log'
 
 /**
  * Earliest tick at which an actor may begin reacting to an incoming skill: the
@@ -150,7 +151,7 @@ export function startReaction(
     resolved: false,
   }
 
-  return {
+  const next: CombatState = {
     ...state,
     actors: {
       ...state.actors,
@@ -171,4 +172,11 @@ export function startReaction(
       active: [...state.timeline.active, instance],
     },
   }
+
+  return emit(next, {
+    kind: 'reactionUsed',
+    actorId: reactorId,
+    skillId,
+    incomingInstanceId,
+  })
 }
