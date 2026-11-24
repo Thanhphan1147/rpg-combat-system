@@ -40,7 +40,7 @@ function createFixture() {
     roster: [actor],
     content,
     rules,
-    timeline: { tick: 0, active: [] },
+    timeline: { tick: 0, nextInstanceId: 1, active: [] },
     pending: null,
     outcome: { status: 'active' },
   }
