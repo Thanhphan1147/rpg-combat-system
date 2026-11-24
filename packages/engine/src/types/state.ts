@@ -17,6 +17,7 @@ export interface TimelineSkill {
 
 export interface Timeline {
   tick: number
+  nextInstanceId: number
   active: TimelineSkill[]
 }
 

@@ -1,4 +1,6 @@
+export * from './combat'
 export * from './stats'
+export * from './timeline'
 export * from './types/character'
 export * from './types/facade'
 export * from './types/ids'
