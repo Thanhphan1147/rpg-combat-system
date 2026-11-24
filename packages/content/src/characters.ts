@@ -4,16 +4,16 @@ import { Stat as Stats } from '@rpg/engine'
 export const wanderer: CharacterTemplate = {
   id: 'wanderer',
   name: 'The Wanderer',
-  baseStats: { speed: 12, reflex: 12, perception: 12, maxHp: 100, attack: 10, defense: 5 },
+  baseStats: { speed: 120, reflex: 120, perception: 120, maxHp: 1000, attack: 100, defense: 50 },
 }
 
 const MINIMUMS: StatBlock = {
-  speed: 2,
-  reflex: 2,
-  perception: 2,
-  maxHp: 25,
-  attack: 2,
-  defense: 2,
+  speed: 20,
+  reflex: 20,
+  perception: 20,
+  maxHp: 250,
+  attack: 20,
+  defense: 20,
 }
 
 const STAT_ORDER: Stat[] = [
@@ -26,9 +26,9 @@ const STAT_ORDER: Stat[] = [
 ]
 
 /**
- * Rolls a goblin whose base stats total 80% of the player's total. The extra
- * points are distributed randomly, weighted by the player's own profile, so each
- * fight presents a slightly different threat.
+ * Rolls a goblin whose base stats total between 85% and 115% of the player's
+ * total. The extra points are distributed randomly, weighted by the player's own
+ * profile, so each fight presents a different threat.
  */
 export function rollGoblin(
   player: CharacterTemplate,
@@ -37,7 +37,8 @@ export function rollGoblin(
   const stats: StatBlock = { ...MINIMUMS }
 
   const playerTotal = STAT_ORDER.reduce((sum, key) => sum + player.baseStats[key], 0)
-  const target = Math.round(playerTotal * 0.8)
+  const ratio = 0.85 + random() * 0.3
+  const target = Math.round(playerTotal * ratio)
   let remaining = target - STAT_ORDER.reduce((sum, key) => sum + stats[key], 0)
 
   const pool: Stat[] = []

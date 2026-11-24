@@ -1,12 +1,14 @@
 <script lang="ts">
   import {
     canReactAt,
+    CENTITICKS_PER_TICK,
     createCombat,
     getEffectiveStat,
     getFreeActors,
     getMaxHp,
     getPrompt,
     readTicks,
+    scalePhases,
     step,
     Stat,
   } from '@rpg/engine'
@@ -81,7 +83,7 @@
       ticks.push(skill.startedAt, span.startupEnd, span.connectAt, span.end)
     }
     const start = Math.min(...ticks)
-    const end = Math.max(...ticks, combat.timeline.tick + 4)
+    const end = Math.max(...ticks, combat.timeline.tick + CENTITICKS_PER_TICK * 4)
     return { start, end: end <= start ? start + 1 : end }
   })
 
@@ -111,7 +113,7 @@
       return `The ${actorName(attackerId)} winds up a ${skill.name}.`
     }
     const perception = getEffectiveStat(combat, observer, Stat.Perception)
-    const readable = readTicks(perception, combat.rules) <= skill.startup
+    const readable = readTicks(perception, combat.rules) <= scalePhases(combat, attackerId, skill).startup
     return readable
       ? `The ${actorName(attackerId)} winds up a ${skill.name}.`
       : skill.vagueDescription
@@ -122,9 +124,8 @@
     connectAt: number
     end: number
   } {
-    const definition = combat.content.skills[skill.skillId]
-    const startupEnd = skill.startedAt + (definition?.startup ?? 0)
-    const connectAt = startupEnd + (definition?.delivery ?? 0)
+    const startupEnd = skill.startedAt + skill.startupTicks
+    const connectAt = startupEnd + skill.deliveryTicks
     return { startupEnd, connectAt, end: skill.endingEndsAt }
   }
 
@@ -215,11 +216,14 @@
         )
         .map((option) => {
           const definition = combat.content.skills[option.skillId]
-          const connectsAt =
-            combat.timeline.tick +
-            (definition?.startup ?? 0) +
-            (definition?.delivery ?? 0)
-          return { option, connectsAt }
+          if (definition === undefined) {
+            return { option, connectsAt: Number.POSITIVE_INFINITY }
+          }
+          const durations = scalePhases(combat, GOBLIN, definition)
+          return {
+            option,
+            connectsAt: combat.timeline.tick + durations.startup + durations.delivery,
+          }
         })
         .filter((candidate) => candidate.connectsAt <= current.incoming.connectAt)
         .sort((a, b) => a.connectsAt - b.connectsAt)
@@ -278,6 +282,10 @@
     autoPlay()
   }
 
+  function formatTick(value: number): string {
+    return (value / CENTITICKS_PER_TICK).toFixed(1)
+  }
+
   function incomingLine(current: ReactionPrompt): string {
     const skill = current.incoming.skillId
     if (current.incoming.identified) {
@@ -310,15 +318,15 @@
             </div>
             <div class="status">
               {freeActors.includes(actorId) ? 'free' : 'busy'}
-              · hitstun {combat.actors[actorId]?.runtime.hitstunUntil}
-              · stagger {combat.actors[actorId]?.runtime.staggeredUntil}
+              · hitstun {formatTick(combat.actors[actorId]?.runtime.hitstunUntil ?? 0)}
+              · stagger {formatTick(combat.actors[actorId]?.runtime.staggeredUntil ?? 0)}
             </div>
           </div>
         {/each}
       </div>
 
       <div class="timeline">
-        <div class="timeline-head">timeline · tick {combat.timeline.tick}</div>
+        <div class="timeline-head">timeline · tick {formatTick(combat.timeline.tick)}</div>
         {#each combat.timeline.active as skill (skill.instanceId)}
           {@const span = skillSpan(skill)}
           {@const marker = reactionMarker(skill)}

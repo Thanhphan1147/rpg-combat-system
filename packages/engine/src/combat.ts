@@ -6,6 +6,7 @@ import { getFreeActors } from './timeline'
 import { emit } from './log'
 import { getEffectiveStat } from './stats'
 import { reactionDelay } from './reflex'
+import { scalePhases } from './scaling'
 
 /**
  * Configuration for one actor entering combat. `skillIds` is the actor's current
@@ -108,12 +109,16 @@ export function startSkill(
   }
 
   const target = resolveTarget(state, actorId, skill, targetActorId)
+  const durations = scalePhases(state, actorId, skill)
   const instance: TimelineSkill = {
     instanceId: `i${state.timeline.nextInstanceId}`,
     actorId,
     skillId,
     startedAt: tick,
-    endingEndsAt: tick + skill.startup + skill.delivery + skill.ending,
+    startupTicks: durations.startup,
+    deliveryTicks: durations.delivery,
+    endingTicks: durations.ending,
+    endingEndsAt: tick + durations.startup + durations.delivery + durations.ending,
     targetActorId: target,
     reactingToInstanceId: null,
     resolved: false,

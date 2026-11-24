@@ -64,7 +64,7 @@ function reactionPrompt(state: CombatState): ReactionPrompt | null {
         actorId: incoming.actorId,
         skillId: incoming.skillId,
         identified: view.identified,
-        connectAt: skillConnectAt(state, incoming),
+        connectAt: skillConnectAt(incoming),
       }
       return {
         kind: 'reaction',

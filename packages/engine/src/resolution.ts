@@ -10,12 +10,8 @@ function skillDefinitionOf(state: CombatState, skillId: string): SkillDef | unde
   return state.content.skills[skillId]
 }
 
-function connectAtOf(state: CombatState, instance: TimelineSkill): number {
-  const skillDefinition = skillDefinitionOf(state, instance.skillId)
-  if (skillDefinition === undefined) {
-    throw new Error(`Unknown skill: ${instance.skillId}`)
-  }
-  return instance.startedAt + skillDefinition.startup + skillDefinition.delivery
+function connectAtOf(instance: TimelineSkill): number {
+  return instance.startedAt + instance.startupTicks + instance.deliveryTicks
 }
 
 function isDefensive(kind: string): boolean {
@@ -126,7 +122,6 @@ function cancelOthers(
 function recordDefence(
   state: CombatState,
   reaction: TimelineSkill,
-  definition: SkillDef,
 ): CombatState {
   const incomingId = reaction.reactingToInstanceId
   if (incomingId === null) {
@@ -136,7 +131,7 @@ function recordDefence(
   if (incoming === undefined) {
     return state
   }
-  const connectsAt = reaction.startedAt + definition.startup + definition.delivery
+  const connectsAt = reaction.startedAt + reaction.startupTicks + reaction.deliveryTicks
   if (incoming.defence !== null && incoming.defence.connectsAt <= connectsAt) {
     return state
   }
@@ -177,7 +172,7 @@ function resolveAttack(
     if (definition === undefined || !isDefensive(definition.kind)) {
       return false
     }
-    return connectAtOf(state, reaction) <= at
+    return connectAtOf(reaction) <= at
   })
 
   const recorded = attack.defence
@@ -221,7 +216,7 @@ function resolveAttack(
   )
   const cleanInterrupt = others.some((other) => {
     const definition = skillDefinitionOf(state, other.skillId)
-    return definition?.kind === 'attack' && at < other.startedAt + definition.startup
+    return definition?.kind === 'attack' && at < other.startedAt + other.startupTicks
   })
 
   let damage = damageFor(state, attack.actorId, targetId, attackDefinition.power)
@@ -269,7 +264,7 @@ export function resolveConnect(state: CombatState, instanceId: InstanceId): Comb
     return resolveAttack(state, instance, definition)
   }
   if (isDefensive(definition.kind) && instance.reactingToInstanceId !== null) {
-    return recordDefence(state, instance, definition)
+    return recordDefence(state, instance)
   }
   return state
 }

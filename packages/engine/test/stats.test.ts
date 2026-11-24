@@ -8,6 +8,7 @@ const rules: Ruleset = {
   reflex: { base: 12, scale: 0.5, floor: 1 },
   perception: { base: 10, scale: 1, floor: 1 },
   interruptDuringStartup: { damageMultiplier: 1.5, stagger: 4 },
+  speedScaling: { rate: 0, startupFloor: 0 },
 }
 
 function createFixture() {

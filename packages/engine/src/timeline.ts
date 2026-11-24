@@ -39,12 +39,8 @@ function transitionKey(transition: Transition): string {
  * Absolute tick at which an active skill connects, derived from its start and
  * the skill's `startup + delivery`. Throws if the skill is missing from content.
  */
-export function skillConnectAt(state: CombatState, skill: TimelineSkill): number {
-  const skillDefinition = state.content.skills[skill.skillId]
-  if (skillDefinition === undefined) {
-    throw new Error(`Unknown skill: ${skill.skillId}`)
-  }
-  return skill.startedAt + skillDefinition.startup + skillDefinition.delivery
+export function skillConnectAt(skill: TimelineSkill): number {
+  return skill.startedAt + skill.startupTicks + skill.deliveryTicks
 }
 
 /**
@@ -85,7 +81,7 @@ export function nextTransition(state: CombatState): Transition | null {
     if (!skill.resolved) {
       consider({
         kind: 'connect',
-        tick: skillConnectAt(state, skill),
+        tick: skillConnectAt(skill),
         instanceId: skill.instanceId,
       })
     }
@@ -98,7 +94,7 @@ export function nextTransition(state: CombatState): Transition | null {
     if (skillDefinition?.kind !== 'attack') {
       continue
     }
-    const connectAt = skill.startedAt + skillDefinition.startup + skillDefinition.delivery
+    const connectAt = skill.startedAt + skill.startupTicks + skill.deliveryTicks
     for (const actorId of state.roster) {
       if (actorId === skill.actorId) {
         continue

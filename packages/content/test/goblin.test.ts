@@ -36,13 +36,17 @@ describe('goblin encounter', () => {
     expect(dodge.ending).toBeGreaterThan(guard.ending)
   })
 
-  it('rolls the goblin at 80% of the player total', () => {
-    const target = Math.round(total(wanderer.baseStats) * 0.8)
-    for (let seed = 1; seed <= 20; seed += 1) {
+  it('rolls the goblin between 85% and 115% of the player total', () => {
+    const playerTotal = total(wanderer.baseStats)
+    const min = Math.round(playerTotal * 0.85)
+    const max = Math.round(playerTotal * 1.15)
+    for (let seed = 1; seed <= 40; seed += 1) {
       const goblin = rollGoblin(wanderer, seeded(seed))
-      expect(total(goblin.baseStats)).toBe(target)
-      expect(goblin.baseStats.maxHp).toBeGreaterThanOrEqual(25)
-      expect(goblin.baseStats.attack).toBeGreaterThanOrEqual(2)
+      const goblinTotal = total(goblin.baseStats)
+      expect(goblinTotal).toBeGreaterThanOrEqual(min)
+      expect(goblinTotal).toBeLessThanOrEqual(max)
+      expect(goblin.baseStats.maxHp).toBeGreaterThanOrEqual(250)
+      expect(goblin.baseStats.attack).toBeGreaterThanOrEqual(20)
     }
   })
 

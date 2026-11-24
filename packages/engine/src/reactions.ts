@@ -6,6 +6,7 @@ import { getEffectiveStat } from './stats'
 import { getPerceptionView } from './perception'
 import { reactionAt } from './reflex'
 import { emit } from './log'
+import { scalePhases } from './scaling'
 
 /**
  * Earliest tick at which an actor may begin reacting to an incoming skill: the
@@ -54,7 +55,7 @@ export function canReact(
   if (skill === undefined) {
     return false
   }
-  const connectAt = incoming.startedAt + skill.startup + skill.delivery
+  const connectAt = incoming.startedAt + incoming.startupTicks + incoming.deliveryTicks
   if (state.timeline.tick >= connectAt) {
     return false
   }
@@ -105,12 +106,13 @@ export function getReactionOptions(
     if ((actor.runtime.cooldownEndsAt[skillId] ?? 0) > state.timeline.tick) {
       continue
     }
+    const durations = scalePhases(state, reactorId, skill)
     options.push({
       skillId,
       kind: skill.kind,
       identified: view.identified,
       description: view.description,
-      connectsAt: start + skill.startup + skill.delivery,
+      connectsAt: start + durations.startup + durations.delivery,
     })
   }
 
@@ -154,12 +156,16 @@ export function startReaction(
   }
 
   const tick = state.timeline.tick
+  const durations = scalePhases(state, reactorId, skill)
   const instance: TimelineSkill = {
     instanceId: `i${state.timeline.nextInstanceId}`,
     actorId: reactorId,
     skillId,
     startedAt: tick,
-    endingEndsAt: tick + skill.startup + skill.delivery + skill.ending,
+    startupTicks: durations.startup,
+    deliveryTicks: durations.delivery,
+    endingTicks: durations.ending,
+    endingEndsAt: tick + durations.startup + durations.delivery + durations.ending,
     targetActorId: skill.targeting === 'opponent' ? incoming.actorId : null,
     reactingToInstanceId: incomingInstanceId,
     resolved: false,

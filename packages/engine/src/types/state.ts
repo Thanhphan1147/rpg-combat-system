@@ -16,6 +16,9 @@ export interface TimelineSkill {
   actorId: ActorId
   skillId: SkillId
   startedAt: number
+  startupTicks: number
+  deliveryTicks: number
+  endingTicks: number
   endingEndsAt: number
   targetActorId: ActorId | null
   reactingToInstanceId: InstanceId | null
@@ -61,6 +64,7 @@ export interface Ruleset {
   reflex: { base: number; scale: number; floor: number }
   perception: { base: number; scale: number; floor: number }
   interruptDuringStartup: { damageMultiplier: number; stagger: number }
+  speedScaling: { rate: number; startupFloor: number }
 }
 
 export interface CombatState {
