@@ -32,6 +32,12 @@ export type CombatEvent =
       bySkillId: SkillId
     }
   | { kind: 'staggered'; actorId: ActorId }
+  | {
+      kind: 'unreactable'
+      actorId: ActorId
+      targetActorId: ActorId
+      skillId: SkillId
+    }
   | { kind: 'combatEnd'; winner: ActorId }
 
 export interface CombatLogEntry {

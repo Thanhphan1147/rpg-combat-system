@@ -32,6 +32,7 @@ function makeSkill(overrides: Partial<SkillDef> & { id: SkillDef['id'] }): Skill
     armoredDuringDelivery: false,
     vagueDescription: 'A blur.',
     preciseDescription: 'A precise strike.',
+    hitFlavor: '',
     ...overrides,
   }
 }

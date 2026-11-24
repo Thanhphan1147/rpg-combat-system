@@ -68,7 +68,7 @@
     }
     const events = combat.log
       .filter((entry) => entry.event.kind !== 'combatStart')
-      .map((entry) => narrate(entry))
+      .flatMap((entry) => narrate(entry).split('\n'))
       .filter((line) => line.length > 0)
     return [...preamble, ...events]
   })
@@ -144,10 +144,19 @@
         return event.actorId === PLAYER
           ? `You answer with a ${skillName(event.skillId)}.`
           : `The ${actorName(event.actorId)} answers with a ${skillName(event.skillId)}.`
-      case 'hit':
-        return event.targetActorId === PLAYER
-          ? `The ${actorName(event.actorId)}'s ${skillName(event.skillId)} catches you for ${event.damage}.`
-          : `Your ${skillName(event.skillId)} bites into the ${actorName(event.targetActorId)} for ${event.damage}.`
+      case 'hit': {
+        const flavor = combat.content.skills[event.skillId]?.hitFlavor ?? ''
+        if (event.targetActorId === PLAYER) {
+          const line =
+            flavor.length > 0
+              ? flavor
+              : `The ${actorName(event.actorId)}'s ${skillName(event.skillId)} catches you.`
+          return `${line}\n[ you have taken ${event.damage} damage ]`
+        }
+        return flavor.length > 0
+          ? flavor
+          : `Your ${skillName(event.skillId)} bites into the ${actorName(event.targetActorId)}.`
+      }
       case 'blocked':
         if (event.complete) {
           return event.targetActorId === PLAYER
@@ -155,8 +164,8 @@
             : `The ${actorName(event.targetActorId)} blocks your ${skillName(event.skillId)} cleanly.`
         }
         return event.targetActorId === PLAYER
-          ? `Your guard comes a beat late — ${event.damage} gets through.`
-          : `The ${actorName(event.targetActorId)}'s guard is late — ${event.damage} gets through.`
+          ? `Your guard comes a beat late.\n[ you have taken ${event.damage} damage ]`
+          : `The ${actorName(event.targetActorId)}'s guard is late.`
       case 'dodged':
         return event.targetActorId === PLAYER
           ? `You slip aside from the ${skillName(event.skillId)}.`
@@ -174,6 +183,10 @@
         return event.actorId === PLAYER
           ? 'You stagger, reeling.'
           : `The ${actorName(event.actorId)} staggers, reeling.`
+      case 'unreactable':
+        return event.targetActorId === PLAYER
+          ? encounter.narration.tooFastPlayer
+          : encounter.narration.tooFastEnemy
       case 'combatEnd':
         return event.winner === PLAYER
           ? 'The goblin folds to the wet stones and moves no more.'
@@ -313,7 +326,7 @@
 
   <section class="narration" bind:this={logElement}>
     {#each narration as line}
-      <p>{line}</p>
+      <p class:system={line.startsWith('[')}>{line}</p>
     {/each}
   </section>
 

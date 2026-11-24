@@ -15,6 +15,7 @@ export const skills: Record<string, SkillDef> = {
     armoredDuringDelivery: false,
     vagueDescription: 'A flicker of steel.',
     preciseDescription: 'Slash — a fast horizontal cut.',
+    hitFlavor: 'A clean horizontal cut bites into the target.',
   },
   heavy: {
     id: 'heavy',
@@ -30,6 +31,7 @@ export const skills: Record<string, SkillDef> = {
     armoredDuringDelivery: true,
     vagueDescription: 'A shadow rises behind a heavy weapon.',
     preciseDescription: 'Heavy Blow — slow, armored, punishing.',
+    hitFlavor: 'The heavy blow lands with a sickening crunch.',
   },
   guard: {
     id: 'guard',
@@ -45,6 +47,7 @@ export const skills: Record<string, SkillDef> = {
     armoredDuringDelivery: false,
     vagueDescription: 'You set your feet.',
     preciseDescription: 'Guard — a quick block.',
+    hitFlavor: '',
   },
   dodge: {
     id: 'dodge',
@@ -60,6 +63,7 @@ export const skills: Record<string, SkillDef> = {
     armoredDuringDelivery: false,
     vagueDescription: 'You coil to move.',
     preciseDescription: 'Dodge — slip aside.',
+    hitFlavor: '',
   },
   stab: {
     id: 'stab',
@@ -75,6 +79,7 @@ export const skills: Record<string, SkillDef> = {
     armoredDuringDelivery: false,
     vagueDescription: 'Something sharp darts toward you.',
     preciseDescription: 'Rusty Stab — quick, weak.',
+    hitFlavor: 'A rusty blade slips past the guard.',
   },
   club: {
     id: 'club',
@@ -90,5 +95,6 @@ export const skills: Record<string, SkillDef> = {
     armoredDuringDelivery: true,
     vagueDescription: 'The goblin heaves its club back.',
     preciseDescription: 'Goblin Club — slow, heavy.',
+    hitFlavor: 'The club crashes home with brutal weight.',
   },
 }

@@ -7,6 +7,8 @@ export interface EncounterNarration {
   opening: string
   playerInitiative: string
   enemyInitiative: string
+  tooFastPlayer: string
+  tooFastEnemy: string
 }
 
 /**
@@ -29,6 +31,8 @@ export const goblinEncounter: Encounter = {
     opening: 'You face a goblin in battle.',
     playerInitiative: 'You seize the initiative.',
     enemyInitiative: 'The goblin seizes the initiative.',
+    tooFastPlayer: 'The attack is too fast for you to react.',
+    tooFastEnemy: 'The attack is too fast for the goblin to react.',
   },
   content: { skills, characters },
   rules: standardRules,

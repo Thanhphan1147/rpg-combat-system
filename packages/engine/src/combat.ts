@@ -4,6 +4,8 @@ import type { ActorSide, CombatActor, CombatState, ContentBundle, Ruleset, Timel
 import { Stat } from './types/stats'
 import { getFreeActors } from './timeline'
 import { emit } from './log'
+import { getEffectiveStat } from './stats'
+import { reactionDelay } from './reflex'
 
 /**
  * Configuration for one actor entering combat. `skillIds` is the actor's current
@@ -117,7 +119,7 @@ export function startSkill(
     resolved: false,
   }
 
-  const next: CombatState = {
+  const started: CombatState = {
     ...state,
     actors: {
       ...state.actors,
@@ -139,7 +141,23 @@ export function startSkill(
     },
   }
 
-  return emit(next, { kind: 'skillUsed', actorId, skillId })
+  let next: CombatState = emit(started, { kind: 'skillUsed', actorId, skillId })
+
+  if (target !== null) {
+    const connectAt = tick + skill.startup + skill.delivery
+    const reflex = getEffectiveStat(state, target, Stat.Reflex)
+    const delay = reactionDelay(reflex, state.rules)
+    if (tick + delay > connectAt) {
+      next = emit(next, {
+        kind: 'unreactable',
+        actorId,
+        targetActorId: target,
+        skillId,
+      })
+    }
+  }
+
+  return next
 }
 
 function resolveTarget(

@@ -26,6 +26,7 @@ function makeSkill(overrides: Partial<SkillDef> & { id: SkillDef['id'] }): Skill
     armoredDuringDelivery: false,
     vagueDescription: 'vague',
     preciseDescription: 'precise',
+    hitFlavor: '',
     ...overrides,
   }
 }
@@ -132,5 +133,13 @@ describe('session narration', () => {
     expect(kinds).toContain('hit')
     expect(kinds).toContain('combatEnd')
     expect(state.outcome.status).toBe('ended')
+  })
+
+  it('flags an attack with no reaction window as unreactable', () => {
+    const jab = startSkill(makeCombat(), 'a', 'jab', 'b')
+    expect(jab.log.some((entry) => entry.event.kind === 'unreactable')).toBe(true)
+
+    const heavy = startSkill(makeCombat(), 'a', 'heavy', 'b')
+    expect(heavy.log.some((entry) => entry.event.kind === 'unreactable')).toBe(false)
   })
 })

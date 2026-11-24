@@ -50,6 +50,13 @@ body {
   color: #e2dac8;
 }
 
+.narration p.system {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #9a9486;
+}
+
 .prompt {
   padding-top: 8px;
 }

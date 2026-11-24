@@ -20,4 +20,5 @@ export interface SkillDef {
   armoredDuringDelivery: boolean
   vagueDescription: string
   preciseDescription: string
+  hitFlavor: string
 }
