@@ -23,8 +23,6 @@ export const NARRATION = {
   armoredEnemy: "{{actor}}'s {{skill}} shrugs off the hit and keeps coming.",
   victory: '{{enemy}} folds to the wet stones and moves no more.',
   defeat: 'Your knees give way. The dark closes in.',
-  identifiedPrefix: 'You read the windup. {{description}}',
-  vaguePrefix: 'You catch only a glimpse: {{description}}',
   systemDamage: '[ you have taken {{damage}} damage ]',
   enemyGearOne: 'The enemy wears a single piece of gear. {{flavor}}',
   enemyGearMany: 'The enemy wears {{count}} pieces of gear. {{flavor}}',
@@ -34,7 +32,6 @@ export const NARRATION = {
   essenceDropped: 'An essence drops: {{essence}} (grants {{skill}}).',
   noEssence: 'No essence this time.',
   runOver: 'The wanderer falls. The run ends here.',
-  unknownIncoming: 'Something is coming.',
 } as const
 
 export type NarrationTemplateKey = keyof typeof NARRATION

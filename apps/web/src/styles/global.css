@@ -79,12 +79,6 @@ body {
   padding-top: 8px;
 }
 
-.incoming {
-  margin: 0 0 12px;
-  color: #b8ae98;
-  font-style: italic;
-}
-
 .options {
   display: flex;
   flex-wrap: wrap;

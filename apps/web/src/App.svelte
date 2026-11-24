@@ -17,7 +17,6 @@
     ActorId,
     CombatLogEntry,
     CombatState,
-    IncomingSkillInfo,
     Intent,
     Prompt,
     SkillId,
@@ -517,17 +516,6 @@
   function formatTick(value: number): string {
     return (value / CENTITICKS_PER_TICK).toFixed(1)
   }
-
-  function incomingLine(current: { incoming: IncomingSkillInfo }): string {
-    const skill = current.incoming.skillId
-    const identified = current.incoming.identified
-    const description = identified
-      ? (combat.content.skills[skill]?.preciseDescription ?? '')
-      : (combat.content.skills[skill]?.vagueDescription ?? NARRATION.unknownIncoming)
-    return fill(identified ? NARRATION.identifiedPrefix : NARRATION.vaguePrefix, {
-      description,
-    })
-  }
 </script>
 
 <button class="debug-toggle" class:active={debug} onclick={() => (debug = !debug)}>
@@ -746,7 +734,6 @@
           {/each}
         </div>
       {:else if prompt.kind === 'commit'}
-        <p class="incoming">{incomingLine(prompt)}</p>
         <div class="options">
           {#each prompt.options as option (option.skillId)}
             <button onclick={() => react(option.skillId)}>{option.label}</button>
@@ -754,7 +741,6 @@
           <button class="ghost" onclick={keepCommitting}>Keep committing</button>
         </div>
       {:else}
-        <p class="incoming">{incomingLine(prompt)}</p>
         <div class="options">
           {#each prompt.options as option (option.skillId)}
             <button onclick={() => react(option.skillId)}>{option.label}</button>
