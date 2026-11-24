@@ -20,11 +20,11 @@ const TRANSITION_PRIORITY: Record<Transition['kind'], number> = {
  * the skill's `startup + delivery`. Throws if the skill is missing from content.
  */
 export function skillConnectAt(state: CombatState, skill: TimelineSkill): number {
-  const def = state.content.skills[skill.skillId]
-  if (def === undefined) {
+  const skillDefinition = state.content.skills[skill.skillId]
+  if (skillDefinition === undefined) {
     throw new Error(`Unknown skill: ${skill.skillId}`)
   }
-  return skill.startedAt + def.startup + def.delivery
+  return skill.startedAt + skillDefinition.startup + skillDefinition.delivery
 }
 
 /**

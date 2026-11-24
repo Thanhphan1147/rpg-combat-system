@@ -13,7 +13,7 @@
     startSkill,
     Stat,
   } from '@rpg/engine'
-  import type { ActorId, CombatState, SkillId, TimelineSkill } from '@rpg/engine'
+  import type { ActorId, CombatState, Phase, SkillId, TimelineSkill } from '@rpg/engine'
   import { sampleContent, sampleRules } from '@rpg/content'
 
   const combatants = [
@@ -41,9 +41,10 @@
   }
 
   function act(actorId: ActorId, skillId: SkillId): void {
-    const def = combat.content.skills[skillId]
+    const skillDefinition = combat.content.skills[skillId]
     try {
-      const target = def?.targeting === 'opponent' ? opponentOf(actorId) : undefined
+      const target =
+        skillDefinition?.targeting === 'opponent' ? opponentOf(actorId) : undefined
       combat = startSkill(combat, actorId, skillId, target)
       pushLog(`t${combat.timeline.tick}  ${actorId} starts ${skillId}`)
     } catch (error) {
@@ -73,16 +74,20 @@
   }
 
   function startupEndOf(skill: TimelineSkill): number {
-    const def = combat.content.skills[skill.skillId]
-    return def === undefined ? Number.NaN : skill.startedAt + def.startup
+    const skillDefinition = combat.content.skills[skill.skillId]
+    return skillDefinition === undefined
+      ? Number.NaN
+      : skill.startedAt + skillDefinition.startup
   }
 
   function connectAtOf(skill: TimelineSkill): number {
-    const def = combat.content.skills[skill.skillId]
-    return def === undefined ? Number.NaN : skill.startedAt + def.startup + def.delivery
+    const skillDefinition = combat.content.skills[skill.skillId]
+    return skillDefinition === undefined
+      ? Number.NaN
+      : skill.startedAt + skillDefinition.startup + skillDefinition.delivery
   }
 
-  function phaseOf(skill: TimelineSkill): string {
+  function phaseOf(skill: TimelineSkill): Phase | 'done' {
     if (skill.resolved) {
       return combat.timeline.tick < skill.endingEndsAt ? 'ending' : 'done'
     }
