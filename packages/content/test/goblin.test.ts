@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { createCombat, getPrompt, step } from '@rpg/engine'
 import type { Intent } from '@rpg/engine'
-import { goblinEncounter } from '../src/encounter'
+import { rollGoblin, wanderer } from '../src/characters'
+import { goblinEncounter, rollGoblinEncounter } from '../src/encounter'
+
+function seeded(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 0x100000000
+  }
+}
+
+function total(stats: Record<string, number>): number {
+  return Object.values(stats).reduce((sum, value) => sum + value, 0)
+}
 
 describe('goblin encounter', () => {
   it('ships content, rules and two combatants', () => {
@@ -16,11 +29,22 @@ describe('goblin encounter', () => {
     expect(goblinEncounter.rules.block.incompleteMitigation).toBeGreaterThan(0)
   })
 
-  it('plays to completion with a simple auto-player', () => {
+  it('rolls the goblin at 80% of the player total', () => {
+    const target = Math.round(total(wanderer.baseStats) * 0.8)
+    for (let seed = 1; seed <= 20; seed += 1) {
+      const goblin = rollGoblin(wanderer, seeded(seed))
+      expect(total(goblin.baseStats)).toBe(target)
+      expect(goblin.baseStats.maxHp).toBeGreaterThanOrEqual(25)
+      expect(goblin.baseStats.attack).toBeGreaterThanOrEqual(2)
+    }
+  })
+
+  it('plays a rolled fight to completion', () => {
+    const encounter = rollGoblinEncounter(seeded(7))
     let state = createCombat({
-      content: goblinEncounter.content,
-      rules: goblinEncounter.rules,
-      combatants: goblinEncounter.combatants,
+      content: encounter.content,
+      rules: encounter.rules,
+      combatants: encounter.combatants,
     })
 
     let safety = 0

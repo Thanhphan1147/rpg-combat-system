@@ -1,5 +1,5 @@
 import type { CombatantConfig, ContentBundle, Ruleset } from '@rpg/engine'
-import { characters } from './characters'
+import { characters, rollGoblin, wanderer } from './characters'
 import { standardRules } from './rules'
 import { skills } from './skills'
 
@@ -34,4 +34,20 @@ export const goblinEncounter: Encounter = {
       skillIds: ['stab', 'club', 'guard'],
     },
   ],
+}
+
+/**
+ * A copy of the goblin encounter with freshly rolled goblin stats. Call this
+ * once per fight so the opponent varies between runs.
+ */
+export function rollGoblinEncounter(
+  random: () => number = Math.random,
+): Encounter {
+  return {
+    ...goblinEncounter,
+    content: {
+      ...goblinEncounter.content,
+      characters: { ...characters, goblin: rollGoblin(wanderer, random) },
+    },
+  }
 }

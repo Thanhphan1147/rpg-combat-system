@@ -1,5 +1,14 @@
 <script lang="ts">
-  import { createCombat, getPrompt, step } from '@rpg/engine'
+  import {
+    canReactAt,
+    createCombat,
+    getEffectiveStat,
+    getFreeActors,
+    getMaxHp,
+    getPrompt,
+    step,
+    Stat,
+  } from '@rpg/engine'
   import type {
     ActorId,
     CombatLogEntry,
@@ -8,31 +17,55 @@
     Prompt,
     ReactionPrompt,
     SkillId,
+    TimelineSkill,
   } from '@rpg/engine'
-  import { goblinEncounter } from '@rpg/content'
+  import { rollGoblinEncounter } from '@rpg/content'
 
   const PLAYER = 'wanderer'
   const GOBLIN = 'goblin'
 
+  const STAT_ROWS = [
+    { key: Stat.MaxHp, label: 'max hp' },
+    { key: Stat.Attack, label: 'attack' },
+    { key: Stat.Defense, label: 'defense' },
+    { key: Stat.Speed, label: 'speed' },
+    { key: Stat.Reflex, label: 'reflex' },
+    { key: Stat.Perception, label: 'perception' },
+  ] as const
+
   function fresh(): CombatState {
+    const encounter = rollGoblinEncounter()
     return createCombat({
-      content: goblinEncounter.content,
-      rules: goblinEncounter.rules,
-      combatants: goblinEncounter.combatants,
+      content: encounter.content,
+      rules: encounter.rules,
+      combatants: encounter.combatants,
     })
   }
 
   let combat = $state<CombatState>(fresh())
   let logElement = $state<HTMLElement>()
+  let debug = $state(false)
 
   const prompt = $derived.by(() => getPrompt(combat))
   const ended = $derived.by(() => combat.outcome.status === 'ended')
+  const freeActors = $derived.by(() => getFreeActors(combat))
   const narration = $derived.by(() =>
     combat.log
       .filter((entry) => entry.event.kind !== 'combatStart')
       .map((entry) => narrate(entry))
       .filter((line) => line.length > 0),
   )
+
+  const timelineWindow = $derived.by(() => {
+    const ticks = [combat.timeline.tick]
+    for (const skill of combat.timeline.active) {
+      const span = skillSpan(skill)
+      ticks.push(skill.startedAt, span.startupEnd, span.connectAt, span.end)
+    }
+    const start = Math.min(...ticks)
+    const end = Math.max(...ticks, combat.timeline.tick + 4)
+    return { start, end: end <= start ? start + 1 : end }
+  })
 
   $effect(() => {
     combat.log.length
@@ -48,6 +81,37 @@
 
   function skillName(id: SkillId): string {
     return combat.content.skills[id]?.name ?? id
+  }
+
+  function skillSpan(skill: TimelineSkill): {
+    startupEnd: number
+    connectAt: number
+    end: number
+  } {
+    const definition = combat.content.skills[skill.skillId]
+    const startupEnd = skill.startedAt + (definition?.startup ?? 0)
+    const connectAt = startupEnd + (definition?.delivery ?? 0)
+    return { startupEnd, connectAt, end: skill.endingEndsAt }
+  }
+
+  function pct(tick: number): number {
+    const { start, end } = timelineWindow
+    return Math.max(0, Math.min(100, ((tick - start) / (end - start)) * 100))
+  }
+
+  function reactionMarker(skill: TimelineSkill): number | null {
+    if (skill.resolved || skill.reactingToInstanceId !== null) {
+      return null
+    }
+    const definition = combat.content.skills[skill.skillId]
+    if (definition?.kind !== 'attack') {
+      return null
+    }
+    const reactor = combat.roster.find((id) => id !== skill.actorId)
+    if (reactor === undefined) {
+      return null
+    }
+    return canReactAt(combat, reactor, skill)
   }
 
   function narrate(entry: CombatLogEntry): string {
@@ -167,7 +231,68 @@
   }
 </script>
 
+<button class="debug-toggle" class:active={debug} onclick={() => (debug = !debug)}>
+  debug
+</button>
+
 <main class="story">
+  {#if debug}
+    <section class="debug">
+      <div class="debug-stats">
+        {#each combat.roster as actorId}
+          <div class="stat-card">
+            <div class="stat-name">{actorName(actorId)}</div>
+            <div class="stat-grid">
+              <span>hp</span>
+              <b>{combat.actors[actorId]?.runtime.hp} / {getMaxHp(combat, actorId)}</b>
+              {#each STAT_ROWS as row (row.key)}
+                <span>{row.label}</span>
+                <b>{getEffectiveStat(combat, actorId, row.key)}</b>
+              {/each}
+            </div>
+            <div class="status">
+              {freeActors.includes(actorId) ? 'free' : 'busy'}
+              · hitstun {combat.actors[actorId]?.runtime.hitstunUntil}
+              · stagger {combat.actors[actorId]?.runtime.staggeredUntil}
+            </div>
+          </div>
+        {/each}
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-head">timeline · tick {combat.timeline.tick}</div>
+        {#each combat.timeline.active as skill (skill.instanceId)}
+          {@const span = skillSpan(skill)}
+          {@const marker = reactionMarker(skill)}
+          <div class="tl-row">
+            <span class="tl-label">{skill.actorId} · {skill.skillId}</span>
+            <div class="tl-track">
+              <div
+                class="tl-seg tl-startup"
+                style="left:{pct(skill.startedAt)}%; width:{pct(span.startupEnd) - pct(skill.startedAt)}%"
+              ></div>
+              <div
+                class="tl-seg tl-delivery"
+                style="left:{pct(span.startupEnd)}%; width:{pct(span.connectAt) - pct(span.startupEnd)}%"
+              ></div>
+              <div
+                class="tl-seg tl-ending"
+                style="left:{pct(span.connectAt)}%; width:{pct(span.end) - pct(span.connectAt)}%"
+              ></div>
+              {#if marker !== null}
+                <div class="tl-react" style="left:{pct(marker)}%"></div>
+              {/if}
+              <div class="tl-now" style="left:{pct(combat.timeline.tick)}%"></div>
+            </div>
+          </div>
+        {/each}
+        {#if combat.timeline.active.length === 0}
+          <p class="tl-empty">no active skills</p>
+        {/if}
+      </div>
+    </section>
+  {/if}
+
   <section class="narration" bind:this={logElement}>
     {#each narration as line}
       <p>{line}</p>
