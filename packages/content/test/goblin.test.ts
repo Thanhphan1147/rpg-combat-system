@@ -39,6 +39,7 @@ describe('goblin encounter', () => {
     const guard = goblinEncounter.content.skills.guard!
     const dodge = goblinEncounter.content.skills.dodge!
     expect(dodge.startup + dodge.delivery).toBeLessThan(guard.startup + guard.delivery)
+    expect(dodge.startup + dodge.delivery).toBeGreaterThanOrEqual(150)
     expect(dodge.ending).toBeGreaterThan(guard.ending)
   })
 
