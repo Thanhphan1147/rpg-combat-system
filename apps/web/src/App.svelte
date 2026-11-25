@@ -730,69 +730,66 @@
             {@const actorBars = timelineHistory.filter((bar) => bar.actorId === actorId)}
             <div class="history-column">
               <div class="history-actor">{actorName(actorId)}</div>
-              {#each actorBars as bar (bar.key)}
-                <div class="tl-row" class:active={bar.active}>
-                  <div class="tl-label">
-                    <span>{formatTick(bar.startedAt)} · {skillName(bar.skillId)}</span>
+              <div class="tl-lane">
+                {#each actorBars as bar (bar.key)}
+                  <div
+                    class="tl-seg tl-startup"
+                    style="left:{pct(bar.startedAt)}%; width:{pct(bar.startupEnd) - pct(bar.startedAt)}%"
+                    title="{skillName(bar.skillId)} startup {formatTick(bar.startedAt)}–{formatTick(bar.startupEnd)}"
+                  ></div>
+                  <div
+                    class="tl-seg tl-delivery"
+                    style="left:{pct(bar.startupEnd)}%; width:{pct(bar.connectAt) - pct(bar.startupEnd)}%"
+                    title="{skillName(bar.skillId)} delivery {formatTick(bar.startupEnd)}–{formatTick(bar.connectAt)}"
+                  ></div>
+                  <div
+                    class="tl-seg tl-ending"
+                    style="left:{pct(bar.connectAt)}%; width:{pct(bar.endsAt) - pct(bar.connectAt)}%"
+                    title="{skillName(bar.skillId)} ending {formatTick(bar.connectAt)}–{formatTick(bar.endsAt)}"
+                  ></div>
+                  <div
+                    class="tl-decision"
+                    style="left:{pct(bar.startedAt)}%"
+                    title="Decision: {skillName(bar.skillId)} @ {formatTick(bar.startedAt)}"
+                  ></div>
+                  {#each bar.outcomes as outcome, outcomeIndex (outcomeIndex)}
+                    <div
+                      class="tl-outcome tl-{outcome.kind}"
+                      style="left:{pct(outcome.tick)}%"
+                      title="{outcome.label} @ {formatTick(outcome.tick)}"
+                    ></div>
+                  {/each}
+                {/each}
+                <div
+                  class="tl-now"
+                  style="left:{pct(combat.timeline.tick)}%"
+                  title="Current tick"
+                ></div>
+              </div>
+              <div class="tl-events">
+                {#each actorBars as bar (bar.key)}
+                  <span class="tl-event tl-event-decision">
+                    {formatTick(bar.startedAt)} {skillName(bar.skillId)}
                     {#if bar.targetActorId !== null}
-                      <span>→ {actorName(bar.targetActorId)}</span>
+                      → {actorName(bar.targetActorId)}
                     {/if}
                     {#if bar.incomingInstanceId !== null}
-                      <span class="tl-incoming">incoming {bar.incomingInstanceId}</span>
+                      ← {bar.incomingInstanceId}
                     {/if}
                     {#if bar.active}
                       <span class="tl-active-badge">active</span>
                     {/if}
-                  </div>
-                  <div class="tl-track">
-                    <div
-                      class="tl-seg tl-startup"
-                      style="left:{pct(bar.startedAt)}%; width:{pct(bar.startupEnd) - pct(bar.startedAt)}%"
-                    ></div>
-                    <div
-                      class="tl-seg tl-delivery"
-                      style="left:{pct(bar.startupEnd)}%; width:{pct(bar.connectAt) - pct(bar.startupEnd)}%"
-                    ></div>
-                    <div
-                      class="tl-seg tl-ending"
-                      style="left:{pct(bar.connectAt)}%; width:{pct(bar.endsAt) - pct(bar.connectAt)}%"
-                    ></div>
-                    <div
-                      class="tl-decision"
-                      style="left:{pct(bar.startedAt)}%"
-                      title="Decision point"
-                    ></div>
-                    {#each bar.outcomes as outcome, outcomeIndex (outcomeIndex)}
-                      <div
-                        class="tl-outcome tl-{outcome.kind}"
-                        style="left:{pct(outcome.tick)}%"
-                        title={outcome.label}
-                      ></div>
-                    {/each}
-                    <div
-                      class="tl-now"
-                      style="left:{pct(combat.timeline.tick)}%"
-                      title="Current tick"
-                    ></div>
-                  </div>
-                  <div class="tl-events">
-                    <span class="tl-event tl-event-decision">
-                      decision @ {formatTick(bar.startedAt)}
+                  </span>
+                  {#each bar.outcomes as outcome, outcomeIndex (outcomeIndex)}
+                    <span class="tl-event tl-event-{outcome.kind}">
+                      {outcome.label} @ {formatTick(outcome.tick)}
                     </span>
-                    {#each bar.outcomes as outcome, outcomeIndex (outcomeIndex)}
-                      <span class="tl-event tl-event-{outcome.kind}">
-                        {outcome.label} @ {formatTick(outcome.tick)}
-                      </span>
-                    {/each}
-                    {#if bar.outcomes.length === 0 && bar.active}
-                      <span class="tl-event tl-event-pending">awaiting resolution</span>
-                    {/if}
-                  </div>
-                </div>
-              {/each}
-              {#if actorBars.length === 0}
-                <p class="tl-empty">no actions yet</p>
-              {/if}
+                  {/each}
+                {/each}
+                {#if actorBars.length === 0}
+                  <p class="tl-empty">no actions yet</p>
+                {/if}
+              </div>
             </div>
           {/each}
         </div>

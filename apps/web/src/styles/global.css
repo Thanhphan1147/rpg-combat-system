@@ -241,28 +241,6 @@ button.ghost {
   font-weight: 500;
 }
 
-.tl-row {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 4px 0;
-  border-bottom: 1px solid #171717;
-}
-
-.tl-row.active {
-  border-bottom-color: #3a352c;
-}
-
-.tl-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-  color: #8a8172;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 .tl-active-badge {
   padding: 0 4px;
   border: 1px solid #3a352c;
@@ -273,13 +251,10 @@ button.ghost {
   color: #c9a45c;
 }
 
-.tl-incoming {
-  color: #6f6a5e;
-}
-
-.tl-track {
+.tl-lane {
   position: relative;
-  height: 12px;
+  height: 20px;
+  margin: 2px 0;
   background: #111;
   border-radius: 2px;
   overflow: visible;
@@ -417,11 +392,6 @@ button.ghost {
 
 .tl-event-staggered {
   color: #c9a45c;
-}
-
-.tl-event-pending {
-  color: #4f4a42;
-  font-style: italic;
 }
 
 .tl-empty {
