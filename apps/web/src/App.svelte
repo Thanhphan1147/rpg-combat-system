@@ -154,8 +154,8 @@
     }
 
     const pending = target - start
-    const duration = Math.min(600, Math.max(80, pending * 30))
-    const tickMs = 40
+    const duration = Math.min(850, Math.max(160, pending * 70))
+    const tickMs = 80
     const ticks = Math.max(1, Math.ceil(duration / tickMs))
     const step = Math.ceil(pending / ticks)
 
@@ -507,6 +507,10 @@
     run = unequipItem(run, slot)
   }
 
+  function rarityLabel(rarity: string): string {
+    return rarity.length > 0 ? rarity[0]!.toUpperCase() + rarity.slice(1) : rarity
+  }
+
   function buffLine(buffs: Partial<StatBlock>): string {
     return STAT_ROWS.filter((row) => (buffs[row.key] ?? 0) !== 0)
       .map((row) => `+${buffs[row.key] ?? 0} ${row.label}`)
@@ -587,7 +591,8 @@
     </section>
   {/if}
 
-  <section class="narration" bind:this={logElement}>
+  <div class="stage">
+    <section class="narration" bind:this={logElement}>
     {#key fightSerial}
       {#each narration.slice(0, revealedCount) as line, index (index)}
         <p class:system={line.startsWith('[')}>{line}</p>
@@ -596,6 +601,7 @@
   </section>
 
   <section class="prompt">
+    <div class="prompt-inner">
     {#if ended}
       {#if victory}
         <section class="meta">
@@ -608,7 +614,10 @@
             <p class="meta-line">
               {fill(NARRATION.spoils, {
                 items: encounter.loot
-                  .map((item) => `${item.name} (${buffLine(item.buffs)})`)
+                  .map(
+                    (item) =>
+                      `${rarityLabel(item.rarity)} ${item.name} (${buffLine(item.buffs)})`,
+                  )
                   .join(', '),
               })}
             </p>
@@ -635,7 +644,12 @@
               >
                 <span class="slot-label">{slot}</span>
                 {#if run.gear[slot]}
-                  <span class="slot-essence">{run.gear[slot].name}</span>
+                  <span class="slot-essence">
+                    {run.gear[slot].name}
+                    <span class="rarity-tag rarity-{run.gear[slot].rarity}">
+                      {rarityLabel(run.gear[slot].rarity)}
+                    </span>
+                  </span>
                   <span class="slot-buffs">{buffLine(run.gear[slot].buffs)}</span>
                 {:else}
                   <span class="slot-empty">empty</span>
@@ -653,6 +667,9 @@
                 <button class="essence" onclick={() => equipGear(item.id)}>
                   <span class="essence-name">
                     {item.name}
+                    <span class="rarity-tag rarity-{item.rarity}">
+                      {rarityLabel(item.rarity)}
+                    </span>
                     <span class="slot-tag">{item.slot}</span>
                   </span>
                   <span class="essence-buffs">{buffLine(item.buffs)}</span>
@@ -749,5 +766,7 @@
         </div>
       {/if}
     {/if}
+    </div>
   </section>
+  </div>
 </main>

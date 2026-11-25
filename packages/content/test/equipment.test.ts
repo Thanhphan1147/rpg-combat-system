@@ -5,7 +5,7 @@ import {
   rollEquipment,
   rollEquipmentCount,
 } from '../src/equipment'
-import type { Equipment, EquipmentSlot } from '../src/equipment'
+import type { Equipment, EquipmentRarity, EquipmentSlot } from '../src/equipment'
 import { HP_PER_POINT, statScore } from '../src/stats'
 
 function seeded(seed: number): () => number {
@@ -94,6 +94,60 @@ describe('equipment generation', () => {
     expect(counts[1] ?? 0).toBeGreaterThan(counts[2] ?? 0)
     expect(counts[2] ?? 0).toBeGreaterThan(counts[3] ?? 0)
     expect(counts[3] ?? 0).toBeGreaterThan(counts[4] ?? 0)
+  })
+
+
+  it('rolls higher rarities less often', () => {
+    const random = seeded(21)
+    const counts: Record<EquipmentRarity, number> = {
+      common: 0,
+      uncommon: 0,
+      rare: 0,
+      epic: 0,
+      legendary: 0,
+    }
+    for (let sample = 0; sample < 1000; sample += 1) {
+      counts[createEquipment('weapon', 1, random).rarity] += 1
+    }
+    expect(counts.common).toBeGreaterThan(counts.uncommon)
+    expect(counts.uncommon).toBeGreaterThan(counts.rare)
+    expect(counts.rare).toBeGreaterThan(counts.epic)
+    expect(counts.epic).toBeGreaterThan(counts.legendary)
+    expect(counts.legendary).toBeGreaterThan(0)
+  })
+
+  it('scales total stats by rarity', () => {
+    const rarities: EquipmentRarity[] = [
+      'common',
+      'uncommon',
+      'rare',
+      'epic',
+      'legendary',
+    ]
+    const averages = rarities.map((rarity) => {
+      let total = 0
+      for (let seed = 1; seed <= 20; seed += 1) {
+        total += statScore(
+          createEquipment('armor', 5, seeded(seed), undefined, rarity).buffs,
+        )
+      }
+      return total / 20
+    })
+    for (let index = 1; index < averages.length; index += 1) {
+      expect(averages[index]!).toBeGreaterThan(averages[index - 1]!)
+    }
+  })
+
+  it('adds extra flavor to rare and better items', () => {
+    const common = createEquipment('armor', 5, seeded(9), undefined, 'common')
+    const rare = createEquipment('armor', 5, seeded(9), undefined, 'rare')
+    const legendary = createEquipment('armor', 5, seeded(9), undefined, 'legendary')
+    expect(rare.flavor.startsWith(common.flavor)).toBe(true)
+    expect(rare.flavor.length).toBeGreaterThan(common.flavor.length)
+    expect(legendary.flavor.length).toBeGreaterThan(common.flavor.length)
+    expect(legendary.flavor.split('.').length).toBeGreaterThan(
+      common.flavor.split('.').length,
+    )
   })
 
   it('rolls distinct slots for a full set', () => {

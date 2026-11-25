@@ -3,13 +3,22 @@ import type { StatBlock } from '@rpg/engine'
 import { HP_PER_POINT, STAT_ORDER } from './stats'
 
 export type EquipmentSlot = 'weapon' | 'armor' | 'helmet' | 'boots'
+export type EquipmentRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
 
 export const EQUIPMENT_SLOTS: EquipmentSlot[] = ['weapon', 'armor', 'helmet', 'boots']
+export const EQUIPMENT_RARITIES: EquipmentRarity[] = [
+  'common',
+  'uncommon',
+  'rare',
+  'epic',
+  'legendary',
+]
 
 export interface Equipment {
   id: string
   slot: EquipmentSlot
   name: string
+  rarity: EquipmentRarity
   flavor: string
   buffs: Partial<StatBlock>
 }
@@ -18,6 +27,20 @@ export interface Equipment {
 export const EQUIPMENT_CORE_WEIGHT = 0.6
 export const EQUIPMENT_BASE_BUDGET = 40
 export const EQUIPMENT_BUDGET_PER_LEVEL = 15
+
+interface RarityProfile {
+  min: number
+  max: number
+  weight: number
+}
+
+const RARITY_PROFILES: Record<EquipmentRarity, RarityProfile> = {
+  common: { min: 0.65, max: 0.85, weight: 50 },
+  uncommon: { min: 0.85, max: 1.05, weight: 25 },
+  rare: { min: 1.05, max: 1.25, weight: 15 },
+  epic: { min: 1.25, max: 1.45, weight: 8 },
+  legendary: { min: 1.5, max: 1.7, weight: 2 },
+}
 
 interface SlotProfile {
   core: Partial<Record<Stat, number>>
@@ -98,6 +121,25 @@ const FLAVOR: Record<EquipmentSlot, string[]> = {
   ],
 }
 
+const RARITY_FLAVOR: Partial<Record<EquipmentRarity, string[]>> = {
+  rare: [
+    'A faint, unnatural warmth lingers in it.',
+    'Old runes glimmer along its edges when the light turns.',
+    'The air hums softly around it.',
+  ],
+  epic: [
+    'A low, steady pulse beats beneath its surface.',
+    'It seems to drink the light.',
+    'The air bends strangely around it.',
+  ],
+  legendary: [
+    'A godly aura radiates from it.',
+    'It seems to breathe, slow and patient.',
+    'A weight of forgotten ages settles over it.',
+    'Power older than the stones coils inside it.',
+  ],
+}
+
 let nextEquipmentId = 1
 
 export function equipmentBudget(level: number): number {
@@ -118,6 +160,22 @@ export function rollEquipmentCount(random: () => number = Math.random): number {
     }
   }
   return EQUIPMENT_PIECE_WEIGHTS.length
+}
+
+export function rollEquipmentRarity(random: () => number = Math.random): EquipmentRarity {
+  let roll = random() * 100
+  for (const rarity of EQUIPMENT_RARITIES) {
+    roll -= RARITY_PROFILES[rarity].weight
+    if (roll < 0) {
+      return rarity
+    }
+  }
+  return 'legendary'
+}
+
+function rollRarityMultiplier(rarity: EquipmentRarity, random: () => number): number {
+  const profile = RARITY_PROFILES[rarity]
+  return profile.min + random() * (profile.max - profile.min)
 }
 
 function pick<T>(values: readonly T[], random: () => number): T {
@@ -160,6 +218,7 @@ function rollBuffs(
   profile: SlotProfile,
   level: number,
   coreWeight: number,
+  budgetMultiplier: number,
   random: () => number,
 ): Partial<StatBlock> {
   const shares = splitShares(profile, coreWeight)
@@ -176,7 +235,7 @@ function rollBuffs(
     return {}
   }
 
-  const budget = equipmentBudget(level)
+  const budget = equipmentBudget(level) * budgetMultiplier
   const buffs: Partial<StatBlock> = {}
   for (const [stat, jitter] of jittered) {
     const points = (budget * jitter) / total
@@ -196,6 +255,19 @@ function flavorFor(slot: EquipmentSlot, name: string): string {
   return options[hash % options.length]!
 }
 
+function rarityFlavorFor(rarity: EquipmentRarity, name: string): string {
+  const options = RARITY_FLAVOR[rarity]
+  if (options === undefined || options.length === 0) {
+    return ''
+  }
+  const key = `${rarity}:${name}`
+  let hash = 0
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) >>> 0
+  }
+  return options[hash % options.length]!
+}
+
 /**
  * Rolls one piece of gear. `coreWeight` is the share of the stat budget that
  * goes to the slot's signature stats (weapon attack, armor health/defense,
@@ -207,16 +279,28 @@ export function createEquipment(
   level: number,
   random: () => number = Math.random,
   coreWeight: number = EQUIPMENT_CORE_WEIGHT,
+  rarity?: EquipmentRarity,
 ): Equipment {
+  const resolvedRarity = rarity ?? rollEquipmentRarity(random)
+  const budgetMultiplier = rollRarityMultiplier(resolvedRarity, random)
   const name = `${pick(PREFIXES, random)} ${pick(NOUNS[slot], random)}`
-  const buffs = rollBuffs(SLOT_PROFILES[slot], level, coreWeight, random)
-  const flavor = flavorFor(slot, name)
+  const buffs = rollBuffs(
+    SLOT_PROFILES[slot],
+    level,
+    coreWeight,
+    budgetMultiplier,
+    random,
+  )
+  const baseFlavor = flavorFor(slot, name)
+  const extraFlavor = rarityFlavorFor(resolvedRarity, name)
+  const flavor = extraFlavor.length > 0 ? `${baseFlavor} ${extraFlavor}` : baseFlavor
   const id = `gear-${nextEquipmentId}`
   nextEquipmentId += 1
   return {
     id,
     slot,
     name,
+    rarity: resolvedRarity,
     flavor,
     buffs,
   }
