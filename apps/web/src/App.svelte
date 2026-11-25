@@ -1,7 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import {
-    canReactAt,
     CENTITICKS_PER_TICK,
     createCombat,
     getEffectiveStat,
@@ -21,7 +20,6 @@
     Prompt,
     SkillId,
     StatBlock,
-    TimelineSkill,
   } from '@rpg/engine'
   import { NARRATION, rollEncounter } from '@rpg/content'
   import {
@@ -128,15 +126,202 @@
     return [...preamble, ...events]
   })
 
-  const timelineWindow = $derived.by(() => {
-    const ticks = [combat.timeline.tick]
-    for (const skill of combat.timeline.active) {
-      const span = skillSpan(skill)
-      ticks.push(skill.startedAt, span.startupEnd, span.connectAt, span.end)
+  interface TimelineOutcome {
+    tick: number
+    label: string
+    kind: string
+  }
+
+  interface TimelineHistorySkill {
+    key: string
+    actorId: ActorId
+    skillId: SkillId
+    startedAt: number
+    startupEnd: number
+    connectAt: number
+    endsAt: number
+    targetActorId: ActorId | null
+    incomingInstanceId: string | null
+    active: boolean
+    outcomes: TimelineOutcome[]
+  }
+
+  const timelineHistory = $derived.by((): TimelineHistorySkill[] => {
+    const bars: TimelineHistorySkill[] = []
+    combat.log.forEach((entry, index) => {
+      const event = entry.event
+      if (event.kind !== 'skillUsed' && event.kind !== 'reactionUsed') {
+        return
+      }
+      const definition = combat.content.skills[event.skillId]
+      if (definition === undefined) {
+        return
+      }
+      const durations = scalePhases(combat, event.actorId, definition)
+      const startedAt = entry.tick
+      const startupEnd = startedAt + durations.startup
+      const connectAt = startupEnd + durations.delivery
+      const endsAt = connectAt + durations.ending
+      bars.push({
+        key: `history-${index}`,
+        actorId: event.actorId,
+        skillId: event.skillId,
+        startedAt,
+        startupEnd,
+        connectAt,
+        endsAt,
+        targetActorId:
+          definition.targeting === 'opponent'
+            ? (combat.roster.find((id) => id !== event.actorId) ?? null)
+            : null,
+        incomingInstanceId:
+          event.kind === 'reactionUsed' ? event.incomingInstanceId : null,
+        active: combat.timeline.active.some(
+          (skill) =>
+            skill.actorId === event.actorId &&
+            skill.skillId === event.skillId &&
+            skill.startedAt === startedAt,
+        ),
+        outcomes: [],
+      })
+    })
+
+    const latestBar = (
+      actorId: ActorId,
+      tick: number,
+      skillId?: SkillId,
+    ): TimelineHistorySkill | undefined => {
+      let best: TimelineHistorySkill | undefined
+      for (const bar of bars) {
+        if (bar.actorId !== actorId || bar.startedAt > tick) {
+          continue
+        }
+        if (skillId !== undefined && bar.skillId !== skillId) {
+          continue
+        }
+        if (best === undefined || bar.startedAt > best.startedAt) {
+          best = bar
+        }
+      }
+      return best
     }
-    const start = Math.min(...ticks)
-    const end = Math.max(...ticks, combat.timeline.tick + CENTITICKS_PER_TICK * 4)
-    return { start, end: end <= start ? start + 1 : end }
+
+    const isDefensive = (bar: TimelineHistorySkill): boolean => {
+      const kind = combat.content.skills[bar.skillId]?.kind
+      return kind === 'block' || kind === 'dodge' || kind === 'parry'
+    }
+
+    const latestDefensiveBar = (
+      actorId: ActorId,
+      tick: number,
+    ): TimelineHistorySkill | undefined => {
+      let best: TimelineHistorySkill | undefined
+      for (const bar of bars) {
+        if (bar.actorId !== actorId || bar.startedAt > tick || !isDefensive(bar)) {
+          continue
+        }
+        if (best === undefined || bar.startedAt > best.startedAt) {
+          best = bar
+        }
+      }
+      return best
+    }
+
+    for (const entry of combat.log) {
+      const event = entry.event
+      switch (event.kind) {
+        case 'hit': {
+          const bar = latestBar(event.actorId, entry.tick, event.skillId)
+          bar?.outcomes.push({
+            tick: entry.tick,
+            label: `HIT ${event.damage}`,
+            kind: 'hit',
+          })
+          break
+        }
+        case 'blocked':
+        case 'dodged':
+        case 'parried': {
+          const attackerBar = latestBar(event.actorId, entry.tick, event.skillId)
+          attackerBar?.outcomes.push({
+            tick: entry.tick,
+            label: event.kind.toUpperCase(),
+            kind: event.kind,
+          })
+          const defenderBar = latestDefensiveBar(event.targetActorId, entry.tick)
+          if (
+            defenderBar !== undefined &&
+            defenderBar !== attackerBar &&
+            isDefensive(defenderBar)
+          ) {
+            defenderBar.outcomes.push({
+              tick: entry.tick,
+              label: event.kind.toUpperCase(),
+              kind: event.kind,
+            })
+          }
+          break
+        }
+        case 'interrupted': {
+          const victimBar = latestBar(event.actorId, entry.tick, event.skillId)
+          victimBar?.outcomes.push({
+            tick: entry.tick,
+            label: 'INTERRUPTED',
+            kind: 'interrupted',
+          })
+          const interrupterBar = latestBar(event.byActorId, entry.tick, event.bySkillId)
+          interrupterBar?.outcomes.push({
+            tick: entry.tick,
+            label: 'INTERRUPT',
+            kind: 'interrupted',
+          })
+          break
+        }
+        case 'armored': {
+          const bar = latestBar(event.actorId, entry.tick, event.skillId)
+          bar?.outcomes.push({
+            tick: entry.tick,
+            label: 'ARMORED',
+            kind: 'armored',
+          })
+          break
+        }
+        case 'unreactable': {
+          const bar = latestBar(event.actorId, entry.tick, event.skillId)
+          bar?.outcomes.push({
+            tick: entry.tick,
+            label: 'NO REACTION',
+            kind: 'unreactable',
+          })
+          break
+        }
+        case 'staggered': {
+          const bar = latestBar(event.actorId, entry.tick)
+          bar?.outcomes.push({
+            tick: entry.tick,
+            label: 'STAGGERED',
+            kind: 'staggered',
+          })
+          break
+        }
+        default:
+          break
+      }
+    }
+
+    return bars
+  })
+
+  const historyWindow = $derived.by(() => {
+    const ticks = [0, combat.timeline.tick]
+    for (const bar of timelineHistory) {
+      ticks.push(bar.startedAt, bar.startupEnd, bar.connectAt, bar.endsAt)
+      for (const outcome of bar.outcomes) {
+        ticks.push(outcome.tick)
+      }
+    }
+    const end = Math.max(...ticks, CENTITICKS_PER_TICK)
+    return { start: 0, end: end + CENTITICKS_PER_TICK / 2 }
   })
 
   function revealNarration(target: number): void {
@@ -259,34 +444,9 @@
       : skill.vagueDescription
   }
 
-  function skillSpan(skill: TimelineSkill): {
-    startupEnd: number
-    connectAt: number
-    end: number
-  } {
-    const startupEnd = skill.startedAt + skill.startupTicks
-    const connectAt = startupEnd + skill.deliveryTicks
-    return { startupEnd, connectAt, end: skill.endingEndsAt }
-  }
-
   function pct(tick: number): number {
-    const { start, end } = timelineWindow
+    const { start, end } = historyWindow
     return Math.max(0, Math.min(100, ((tick - start) / (end - start)) * 100))
-  }
-
-  function reactionMarker(skill: TimelineSkill): number | null {
-    if (skill.resolved || skill.reactingToInstanceId !== null) {
-      return null
-    }
-    const definition = combat.content.skills[skill.skillId]
-    if (definition?.kind !== 'attack') {
-      return null
-    }
-    const reactor = combat.roster.find((id) => id !== skill.actorId)
-    if (reactor === undefined) {
-      return null
-    }
-    return canReactAt(combat, reactor, skill)
   }
 
   function narrate(entry: CombatLogEntry): string {
@@ -557,36 +717,85 @@
         {/each}
       </div>
 
-      <div class="timeline">
-        <div class="timeline-head">timeline · tick {formatTick(combat.timeline.tick)}</div>
-        {#each combat.timeline.active as skill (skill.instanceId)}
-          {@const span = skillSpan(skill)}
-          {@const marker = reactionMarker(skill)}
-          <div class="tl-row">
-            <span class="tl-label">{skill.actorId} · {skill.skillId}</span>
-            <div class="tl-track">
-              <div
-                class="tl-seg tl-startup"
-                style="left:{pct(skill.startedAt)}%; width:{pct(span.startupEnd) - pct(skill.startedAt)}%"
-              ></div>
-              <div
-                class="tl-seg tl-delivery"
-                style="left:{pct(span.startupEnd)}%; width:{pct(span.connectAt) - pct(span.startupEnd)}%"
-              ></div>
-              <div
-                class="tl-seg tl-ending"
-                style="left:{pct(span.connectAt)}%; width:{pct(span.end) - pct(span.connectAt)}%"
-              ></div>
-              {#if marker !== null}
-                <div class="tl-react" style="left:{pct(marker)}%"></div>
+      <div class="history">
+        <div class="timeline-head">
+          <span>timeline history · now {formatTick(combat.timeline.tick)}</span>
+          <span class="history-legend">
+            <span class="legend-decision">◆ decision</span>
+            <span class="legend-resolution">● resolution</span>
+          </span>
+        </div>
+        <div class="history-columns">
+          {#each combat.roster as actorId (actorId)}
+            {@const actorBars = timelineHistory.filter((bar) => bar.actorId === actorId)}
+            <div class="history-column">
+              <div class="history-actor">{actorName(actorId)}</div>
+              {#each actorBars as bar (bar.key)}
+                <div class="tl-row" class:active={bar.active}>
+                  <div class="tl-label">
+                    <span>{formatTick(bar.startedAt)} · {skillName(bar.skillId)}</span>
+                    {#if bar.targetActorId !== null}
+                      <span>→ {actorName(bar.targetActorId)}</span>
+                    {/if}
+                    {#if bar.incomingInstanceId !== null}
+                      <span class="tl-incoming">incoming {bar.incomingInstanceId}</span>
+                    {/if}
+                    {#if bar.active}
+                      <span class="tl-active-badge">active</span>
+                    {/if}
+                  </div>
+                  <div class="tl-track">
+                    <div
+                      class="tl-seg tl-startup"
+                      style="left:{pct(bar.startedAt)}%; width:{pct(bar.startupEnd) - pct(bar.startedAt)}%"
+                    ></div>
+                    <div
+                      class="tl-seg tl-delivery"
+                      style="left:{pct(bar.startupEnd)}%; width:{pct(bar.connectAt) - pct(bar.startupEnd)}%"
+                    ></div>
+                    <div
+                      class="tl-seg tl-ending"
+                      style="left:{pct(bar.connectAt)}%; width:{pct(bar.endsAt) - pct(bar.connectAt)}%"
+                    ></div>
+                    <div
+                      class="tl-decision"
+                      style="left:{pct(bar.startedAt)}%"
+                      title="Decision point"
+                    ></div>
+                    {#each bar.outcomes as outcome, outcomeIndex (outcomeIndex)}
+                      <div
+                        class="tl-outcome tl-{outcome.kind}"
+                        style="left:{pct(outcome.tick)}%"
+                        title={outcome.label}
+                      ></div>
+                    {/each}
+                    <div
+                      class="tl-now"
+                      style="left:{pct(combat.timeline.tick)}%"
+                      title="Current tick"
+                    ></div>
+                  </div>
+                  <div class="tl-events">
+                    <span class="tl-event tl-event-decision">
+                      decision @ {formatTick(bar.startedAt)}
+                    </span>
+                    {#each bar.outcomes as outcome, outcomeIndex (outcomeIndex)}
+                      <span class="tl-event tl-event-{outcome.kind}">
+                        {outcome.label} @ {formatTick(outcome.tick)}
+                      </span>
+                    {/each}
+                    {#if bar.outcomes.length === 0 && bar.active}
+                      <span class="tl-event tl-event-pending">awaiting resolution</span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+              {#if actorBars.length === 0}
+                <p class="tl-empty">no actions yet</p>
               {/if}
-              <div class="tl-now" style="left:{pct(combat.timeline.tick)}%"></div>
             </div>
-          </div>
-        {/each}
-        {#if combat.timeline.active.length === 0}
-          <p class="tl-empty">no active skills</p>
-        {/if}
+          {/each}
+        </div>
       </div>
     </section>
   {/if}
