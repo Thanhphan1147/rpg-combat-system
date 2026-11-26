@@ -72,7 +72,7 @@ export const skills: Record<string, SkillDef> = {
     startup: 0,
     delivery: 150,
     ending: 650,
-    cooldown: 1800,
+    cooldown: 2400,
     cooldownGroup: 'defence',
     hitstun: 0,
     power: 0,

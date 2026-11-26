@@ -10,4 +10,5 @@ export const standardRules: Ruleset = {
   interruptDuringStartup: { damageMultiplier: 1.5, stagger: 400 },
   speedScaling: { rate: 1, startupFloor: 100 },
   damageMultiplier: 3,
+  enemyDamageMultiplier: 1.5,
 }

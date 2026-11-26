@@ -68,6 +68,8 @@ export interface Ruleset {
   speedScaling: { rate: number; startupFloor: number }
   /** Global multiplier applied after skill power and attack/defense. Defaults to 1. */
   damageMultiplier?: number
+  /** Extra multiplier for damage dealt by enemies. Defaults to 1. */
+  enemyDamageMultiplier?: number
 }
 
 export interface CombatState {

@@ -27,7 +27,14 @@ function damageFor(
   const attack = getEffectiveStat(state, attackerId, Stat.Attack)
   const defense = getEffectiveStat(state, targetId, Stat.Defense)
   const multiplier = state.rules.damageMultiplier ?? 1
-  return Math.max(1, Math.round((power + attack - defense) * multiplier))
+  const sideMultiplier =
+    state.actors[attackerId]?.side === 'enemy'
+      ? (state.rules.enemyDamageMultiplier ?? 1)
+      : 1
+  return Math.max(
+    1,
+    Math.round((power + attack - defense) * multiplier * sideMultiplier),
+  )
 }
 
 function applyDamage(state: CombatState, targetId: ActorId, amount: number): CombatState {
