@@ -34,6 +34,7 @@ function createFixture() {
           cooldownEndsAt: {},
           hitstunUntil: 0,
           staggeredUntil: 0,
+          buffs: [],
         },
       },
     },

@@ -1,4 +1,5 @@
 export * from './characters'
+export * from './classes'
 export * from './encounter'
 export * from './equipment'
 export * from './narration'

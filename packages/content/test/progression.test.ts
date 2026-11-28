@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { wanderer } from '../src/characters'
 import { enemyArchetypes, rollEncounter } from '../src/encounter'
+import { findPlayerClass } from '../src/classes'
+import type { PlayerClassId } from '../src/classes'
 import { createEquipment } from '../src/equipment'
 import type { Equipment } from '../src/equipment'
 import {
@@ -52,6 +54,29 @@ describe('progression', () => {
     expect(run.gear).toEqual({ weapon: null, armor: null, helmet: null, boots: null })
   })
 
+  it('starts each class with its signature skill and name', () => {
+    const expectations: Array<[PlayerClassId, string]> = [
+      ['warrior', 'guard'],
+      ['rogue', 'dodge'],
+      ['berserker', 'shout'],
+      ['paladin', 'heal'],
+    ]
+    for (const [classId, skillId] of expectations) {
+      const run = createRun(classId)
+      expect(run.classId).toBe(classId)
+      expect(playerSkillIds(run)).toContain('basic')
+      expect(playerSkillIds(run)).toContain(skillId)
+      expect(buildPlayer(run).character.name).toBe(findPlayerClass(classId).name)
+    }
+  })
+
+  it('drops essences on a 30% roll', () => {
+    const drop = applyVictory(createRun(), reward('clubber'), () => 0.29)
+    expect(drop.essences).toHaveLength(1)
+    const noDrop = applyVictory(createRun(), reward('clubber'), () => 0.3)
+    expect(noDrop.essences).toHaveLength(0)
+  })
+
   it('takes gear, awards XP, and drops an essence on a successful roll', () => {
     const clubber = archetype('clubber')
     const weapon = createEquipment('weapon', 1, seeded(1))
@@ -66,7 +91,7 @@ describe('progression', () => {
     expect(essenceSkillPool(clubber)).toContain(run.essences[0]?.skillId)
   })
 
-  it('skips the essence on a failed 10% roll but still takes gear', () => {
+  it('skips the essence on a failed roll but still takes gear', () => {
     const armor = createEquipment('armor', 1, seeded(2))
     const run = applyVictory(createRun(), reward('archer', [armor]), neverDrop)
 

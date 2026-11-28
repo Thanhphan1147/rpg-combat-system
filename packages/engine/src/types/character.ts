@@ -7,10 +7,18 @@ export interface CharacterTemplate {
   baseStats: StatBlock
 }
 
+export interface ActiveBuff {
+  skillId: SkillId
+  expiresAt: number
+  damageMultiplier: number
+  incomingDamageMultiplier: number
+}
+
 export interface CharacterRuntime {
   hp: number
   skillIds: SkillId[]
   cooldownEndsAt: Partial<Record<SkillId, number>>
   hitstunUntil: number
   staggeredUntil: number
+  buffs: ActiveBuff[]
 }

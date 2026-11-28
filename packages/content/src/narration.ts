@@ -31,6 +31,10 @@ export const NARRATION = {
   noSpoils: 'Nothing worth stripping from this one.',
   essenceDropped: 'An essence drops: {{essence}} (grants {{skill}}).',
   noEssence: 'No essence this time.',
+  buffedPlayer: '{{skill}} takes hold — your blows bite deeper and harm glances away.',
+  buffedEnemy: '{{actor}} is steeled by {{skill}}.',
+  healedPlayer: 'You knit your wounds closed. {{amount}} HP restored.',
+  healedEnemy: '{{actor}} mends its wounds. {{amount}} HP restored.',
   runOver: 'The wanderer falls. The run ends here.',
 } as const
 

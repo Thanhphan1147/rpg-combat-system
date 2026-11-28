@@ -32,6 +32,15 @@ export type CombatEvent =
       targetActorId: ActorId
       skillId: SkillId
     }
+  | {
+      kind: 'buffed'
+      actorId: ActorId
+      skillId: SkillId
+      duration: number
+      damageMultiplier: number
+      incomingDamageMultiplier: number
+    }
+  | { kind: 'healed'; actorId: ActorId; skillId: SkillId; amount: number }
   | { kind: 'combatEnd'; winner: ActorId }
 
 export interface CombatLogEntry {

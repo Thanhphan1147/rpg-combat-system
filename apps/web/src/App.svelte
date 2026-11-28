@@ -27,14 +27,16 @@
     buildPlayer,
     createRun,
     EQUIPMENT_SLOTS,
+    findPlayerClass,
     equipItem,
     fillTemplate,
     loadEssence,
+    PLAYER_CLASSES,
     unequipItem,
     unloadEssence,
     xpForNextLevel,
   } from '@rpg/content'
-  import type { Encounter, EquipmentSlot, Essence, RunState } from '@rpg/content'
+  import type { Encounter, EquipmentSlot, Essence, PlayerClassId, RunState } from '@rpg/content'
 
   const STAT_ROWS = [
     { key: Stat.MaxHp, label: 'max hp' },
@@ -47,6 +49,7 @@
 
   const initialRun = createRun()
   let run = $state<RunState>(initialRun)
+  let started = $state(false)
   let awarded = $state(false)
   let selectedEssenceId = $state<string | null>(null)
   let lastEssence = $state<Essence | null>(null)
@@ -80,6 +83,7 @@
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+  const playerClass = $derived(findPlayerClass(run.classId))
   const prompt = $derived.by(() => getPrompt(combat))
   const ended = $derived.by(() => combat.outcome.status === 'ended')
   const victory = $derived.by(() => {
@@ -301,6 +305,24 @@
             tick: entry.tick,
             label: 'STAGGERED',
             kind: 'staggered',
+          })
+          break
+        }
+        case 'buffed': {
+          const bar = latestBar(event.actorId, entry.tick, event.skillId)
+          bar?.outcomes.push({
+            tick: entry.tick,
+            label: 'BUFF',
+            kind: 'buffed',
+          })
+          break
+        }
+        case 'healed': {
+          const bar = latestBar(event.actorId, entry.tick, event.skillId)
+          bar?.outcomes.push({
+            tick: entry.tick,
+            label: `HEAL ${event.amount}`,
+            kind: 'healed',
           })
           break
         }
@@ -532,6 +554,20 @@
         return isPlayer(event.targetActorId)
           ? encounter.narration.tooFastPlayer
           : encounter.narration.tooFastEnemy
+      case 'buffed':
+        return isPlayer(event.actorId)
+          ? fill(NARRATION.buffedPlayer, { skill: skillName(event.skillId) })
+          : fill(NARRATION.buffedEnemy, {
+              actor: subject(event.actorId),
+              skill: skillName(event.skillId),
+            })
+      case 'healed':
+        return isPlayer(event.actorId)
+          ? fill(NARRATION.healedPlayer, { amount: String(event.amount) })
+          : fill(NARRATION.healedEnemy, {
+              actor: subject(event.actorId),
+              amount: String(event.amount),
+            })
       case 'combatEnd': {
         const enemy = actorIdForSide('enemy')
         return isPlayer(event.winner)
@@ -633,8 +669,9 @@
     autoPlay()
   }
 
-  function newRun(): void {
-    run = createRun()
+  function startRun(classId: PlayerClassId): void {
+    run = createRun(classId)
+    started = true
     awarded = false
     selectedEssenceId = null
     lastEssence = null
@@ -644,6 +681,13 @@
     encounter = next.encounter
     combat = next.combat
     autoPlay()
+  }
+
+  function newRun(): void {
+    started = false
+    awarded = true
+    selectedEssenceId = null
+    lastEssence = null
   }
 
   function selectEssence(id: string): void {
@@ -682,12 +726,35 @@
   }
 </script>
 
-<button class="debug-toggle" class:active={debug} onclick={() => (debug = !debug)}>
-  debug
-</button>
+{#if started}
+  <button class="debug-toggle" class:active={debug} onclick={() => (debug = !debug)}>
+    debug
+  </button>
+{/if}
 
 <main class="story">
+  {#if !started}
+    <section class="class-select">
+      <div class="class-title">
+        <h1>Choose your class</h1>
+        <p>Every run begins with one art beside the basic strike.</p>
+      </div>
+      <div class="class-grid">
+        {#each PLAYER_CLASSES as entry (entry.id)}
+          <button class="class-card" onclick={() => startRun(entry.id)}>
+            <span class="class-name">{entry.name}</span>
+            <span class="class-desc">{entry.description}</span>
+            <span class="class-kit">
+              {entry.skillIds.map((skillId) => skillName(skillId)).join(' · ')}
+            </span>
+            <span class="class-start">begin run</span>
+          </button>
+        {/each}
+      </div>
+    </section>
+  {:else}
   <div class="run-bar">
+    <span class="run-class">{playerClass.name}</span>
     <span class="run-level">level {run.level}</span>
     <div class="xp-track"><div class="xp-fill" style="width:{xpPercent}%"></div></div>
     <span class="run-xp">{run.xp} / {xpForNextLevel(run.level)} xp</span>
@@ -712,6 +779,12 @@
               {freeActors.includes(actorId) ? 'free' : 'busy'}
               · hitstun {formatTick(combat.actors[actorId]?.runtime.hitstunUntil ?? 0)}
               · stagger {formatTick(combat.actors[actorId]?.runtime.staggeredUntil ?? 0)}
+              {#if combat.actors[actorId]?.runtime.buffs.some((buff) => buff.expiresAt > combat.timeline.tick)}
+                · buffs {combat.actors[actorId]?.runtime.buffs
+                  .filter((buff) => buff.expiresAt > combat.timeline.tick)
+                  .map((buff) => `${skillName(buff.skillId)} ${formatTick(buff.expiresAt - combat.timeline.tick)}`)
+                  .join(', ')}
+              {/if}
             </div>
           </div>
         {/each}
@@ -975,4 +1048,6 @@
     </div>
   </section>
   </div>
+  {/if}
+
 </main>

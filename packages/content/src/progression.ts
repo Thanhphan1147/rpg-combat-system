@@ -1,5 +1,7 @@
 import type { SkillId, StatBlock } from '@rpg/engine'
 import { wanderer } from './characters'
+import { DEFAULT_PLAYER_CLASS, findPlayerClass } from './classes'
+import type { PlayerClassId } from './classes'
 import { BASE_PLAYER_SKILLS, enemyArchetypes } from './encounter'
 import type { EnemyArchetype, PlayerBuild } from './encounter'
 import { EQUIPMENT_SLOTS } from './equipment'
@@ -22,6 +24,7 @@ export interface Essence {
 
 /** Everything that persists between fights in a single run. */
 export interface RunState {
+  classId: PlayerClassId
   level: number
   xp: number
   essences: Essence[]
@@ -35,7 +38,7 @@ export interface RunState {
 export const XP_PER_LEVEL = 100
 
 /** Chance that a kill also drops an essence. */
-export const ESSENCE_DROP_RATE = 0.1
+export const ESSENCE_DROP_RATE = 0.3
 
 export function xpForNextLevel(level: number): number {
   return XP_PER_LEVEL * level
@@ -46,8 +49,9 @@ function emptyGear(): Record<EquipmentSlot, Equipment | null> {
 }
 
 /** A fresh run starts at level 1 with a single, empty essence slot. */
-export function createRun(): RunState {
+export function createRun(classId: PlayerClassId = DEFAULT_PLAYER_CLASS): RunState {
   return {
+    classId,
     level: 1,
     xp: 0,
     essences: [],
@@ -226,7 +230,7 @@ export function playerStats(run: RunState): StatBlock {
 
 /** Base kit plus every skill granted by an equipped essence, without duplicates. */
 export function playerSkillIds(run: RunState): SkillId[] {
-  const skillIds = [...BASE_PLAYER_SKILLS]
+  const skillIds = [...findPlayerClass(run.classId).skillIds]
   for (const essence of equippedEssences(run)) {
     if (!skillIds.includes(essence.skillId)) {
       skillIds.push(essence.skillId)
@@ -236,8 +240,9 @@ export function playerSkillIds(run: RunState): SkillId[] {
 }
 
 export function buildPlayer(run: RunState): PlayerBuild {
+  const playerClass = findPlayerClass(run.classId)
   return {
-    character: { ...wanderer, baseStats: playerStats(run) },
+    character: { ...wanderer, name: playerClass.name, baseStats: playerStats(run) },
     skillIds: playerSkillIds(run),
   }
 }

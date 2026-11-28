@@ -7,6 +7,7 @@ import type {
   StatBlock,
 } from '@rpg/engine'
 import { characters, rollMonster, wanderer } from './characters'
+import { DEFAULT_PLAYER_CLASS, findPlayerClass, PLAYER_CLASSES } from './classes'
 import { rollEquipment, rollEquipmentCount } from './equipment'
 import type { Equipment } from './equipment'
 import { fillTemplate, NARRATION } from './narration'
@@ -58,8 +59,10 @@ export interface EnemyArchetype {
   essenceBuffs: Partial<StatBlock>
 }
 
-/** The player's starting kit. Essences can add more skills on top of this. */
-export const BASE_PLAYER_SKILLS: SkillId[] = ['basic', 'slash', 'heavy', 'guard', 'dodge']
+/** Every skill a class can start with; essences filter against this list. */
+export const BASE_PLAYER_SKILLS: SkillId[] = [
+  ...new Set(PLAYER_CLASSES.flatMap((playerClass) => playerClass.skillIds)),
+]
 
 /** The character template and loadout used for the player side of a fight. */
 export interface PlayerBuild {
@@ -69,7 +72,7 @@ export interface PlayerBuild {
 
 export const defaultPlayerBuild: PlayerBuild = {
   character: wanderer,
-  skillIds: BASE_PLAYER_SKILLS,
+  skillIds: findPlayerClass(DEFAULT_PLAYER_CLASS).skillIds,
 }
 
 export const enemyArchetypes: EnemyArchetype[] = [

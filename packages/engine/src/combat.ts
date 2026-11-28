@@ -54,6 +54,7 @@ export function createCombat(config: CreateCombatConfig): CombatState {
         cooldownEndsAt: {},
         hitstunUntil: 0,
         staggeredUntil: 0,
+        buffs: [],
       },
     }
     roster.push(combatant.id)

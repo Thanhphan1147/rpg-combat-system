@@ -3,7 +3,8 @@ import type { CombatEvent } from './types/events'
 import type { CombatState, TimelineSkill } from './types/state'
 import type { SkillDef } from './types/skill'
 import { Stat } from './types/stats'
-import { getEffectiveStat } from './stats'
+import { getEffectiveStat, getMaxHp } from './stats'
+import type { ActiveBuff } from './types/character'
 import { emit } from './log'
 
 function skillDefinitionOf(state: CombatState, skillId: string): SkillDef | undefined {
@@ -16,6 +17,20 @@ function connectAtOf(instance: TimelineSkill): number {
 
 function isDefensive(kind: string): boolean {
   return kind === 'block' || kind === 'dodge' || kind === 'parry'
+}
+
+function activeBuffMultiplier(
+  state: CombatState,
+  actorId: ActorId,
+  field: 'damageMultiplier' | 'incomingDamageMultiplier',
+): number {
+  const actor = state.actors[actorId]
+  if (actor === undefined) {
+    return 1
+  }
+  return actor.runtime.buffs
+    .filter((buff) => buff.expiresAt > state.timeline.tick)
+    .reduce((multiplier, buff) => multiplier * buff[field], 1)
 }
 
 function damageFor(
@@ -31,9 +46,17 @@ function damageFor(
     state.actors[attackerId]?.side === 'enemy'
       ? (state.rules.enemyDamageMultiplier ?? 1)
       : 1
+  const outgoing = activeBuffMultiplier(state, attackerId, 'damageMultiplier')
+  const incoming = activeBuffMultiplier(state, targetId, 'incomingDamageMultiplier')
   return Math.max(
     1,
-    Math.round((power + attack - defense) * multiplier * sideMultiplier),
+    Math.round(
+      (power + attack - defense) *
+        multiplier *
+        sideMultiplier *
+        outgoing *
+        incoming,
+    ),
   )
 }
 
@@ -313,6 +336,84 @@ function resolveAttack(
   return withEnd(state, emit(next, event))
 }
 
+function resolveBuff(
+  state: CombatState,
+  instance: TimelineSkill,
+  definition: SkillDef,
+): CombatState {
+  const buff = definition.buff
+  if (buff === undefined) {
+    return state
+  }
+  const actor = state.actors[instance.actorId]
+  if (actor === undefined) {
+    return state
+  }
+  const activeBuff: ActiveBuff = {
+    skillId: definition.id,
+    expiresAt: state.timeline.tick + buff.duration,
+    damageMultiplier: buff.damageMultiplier ?? 1,
+    incomingDamageMultiplier: buff.incomingDamageMultiplier ?? 1,
+  }
+  const buffs = [
+    ...actor.runtime.buffs.filter((existing) => existing.skillId !== definition.id),
+    activeBuff,
+  ]
+  const next: CombatState = {
+    ...state,
+    actors: {
+      ...state.actors,
+      [instance.actorId]: {
+        ...actor,
+        runtime: { ...actor.runtime, buffs },
+      },
+    },
+  }
+  return emit(next, {
+    kind: 'buffed',
+    actorId: instance.actorId,
+    skillId: definition.id,
+    duration: buff.duration,
+    damageMultiplier: activeBuff.damageMultiplier,
+    incomingDamageMultiplier: activeBuff.incomingDamageMultiplier,
+  })
+}
+
+function resolveHeal(
+  state: CombatState,
+  instance: TimelineSkill,
+  definition: SkillDef,
+): CombatState {
+  const actor = state.actors[instance.actorId]
+  if (actor === undefined) {
+    return state
+  }
+  const maxHp = getMaxHp(state, instance.actorId)
+  const amount = Math.min(
+    maxHp - actor.runtime.hp,
+    Math.round(maxHp * (definition.healPercent ?? 0)),
+  )
+  if (amount <= 0) {
+    return state
+  }
+  const next: CombatState = {
+    ...state,
+    actors: {
+      ...state.actors,
+      [instance.actorId]: {
+        ...actor,
+        runtime: { ...actor.runtime, hp: actor.runtime.hp + amount },
+      },
+    },
+  }
+  return emit(next, {
+    kind: 'healed',
+    actorId: instance.actorId,
+    skillId: definition.id,
+    amount,
+  })
+}
+
 /**
  * Resolves the effects of a skill reaching its connect tick. An attack delivers
  * and ends the exchange (or trades with an armored attack); defensive reactions
@@ -329,6 +430,12 @@ export function resolveConnect(state: CombatState, instanceId: InstanceId): Comb
   }
   if (definition.kind === 'attack') {
     return resolveAttack(state, instance, definition)
+  }
+  if (definition.kind === 'buff') {
+    return resolveBuff(state, instance, definition)
+  }
+  if (definition.kind === 'heal') {
+    return resolveHeal(state, instance, definition)
   }
   if (isDefensive(definition.kind) && instance.reactingToInstanceId !== null) {
     return recordDefence(state, instance)
