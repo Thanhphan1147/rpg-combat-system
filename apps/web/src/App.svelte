@@ -27,6 +27,7 @@
     buildPlayer,
     createRun,
     EQUIPMENT_SLOTS,
+    findArchetype,
     findPlayerClass,
     equipItem,
     fillTemplate,
@@ -53,6 +54,7 @@
   let awarded = $state(false)
   let selectedEssenceId = $state<string | null>(null)
   let lastEssence = $state<Essence | null>(null)
+  let runMessages = $state<string[]>([])
 
   function beginFight(
     currentRun: RunState,
@@ -127,7 +129,7 @@
       .filter((entry) => entry.event.kind !== 'combatStart')
       .flatMap((entry) => narrate(entry).split('\n'))
       .filter((line) => line.length > 0)
-    return [...preamble, ...events]
+    return [...preamble, ...events, ...runMessages]
   })
 
   interface TimelineOutcome {
@@ -413,6 +415,21 @@
       equipment: encounter.loot,
     })
     lastEssence = next.essences.length > before ? (next.essences[before] ?? null) : null
+    const archetype = findArchetype(encounter.id)
+    const messages: string[] = []
+    if (archetype !== undefined) {
+      messages.push(fill(NARRATION.xpGained, { xp: String(archetype.xp) }))
+    }
+    if (next.level > run.level) {
+      messages.push(fill(NARRATION.levelUp, { level: String(next.level) }))
+    }
+    for (const item of encounter.loot) {
+      messages.push(fill(NARRATION.obtainedItem, { item: item.name }))
+    }
+    if (lastEssence !== null) {
+      messages.push(fill(NARRATION.foundEssence, { essence: lastEssence.name }))
+    }
+    runMessages = [...runMessages, ...messages]
     run = next
   })
 
@@ -487,25 +504,18 @@
               actor: subject(event.actorId),
               skill: skillName(event.skillId),
             })
-      case 'hit': {
-        const flavor = combat.content.skills[event.skillId]?.hitFlavor ?? ''
-        if (isPlayer(event.targetActorId)) {
-          const line =
-            flavor.length > 0
-              ? flavor
-              : fill(NARRATION.hitPlayerFallback, {
-                  actor: subject(event.actorId),
-                  skill: skillName(event.skillId),
-                })
-          return `${line}\n${fill(NARRATION.systemDamage, { damage: String(event.damage) })}`
-        }
-        return flavor.length > 0
-          ? flavor
-          : fill(NARRATION.hitEnemyFallback, {
+      case 'hit':
+        return isPlayer(event.targetActorId)
+          ? fill(NARRATION.hitPlayer, {
+              actor: subject(event.actorId),
               skill: skillName(event.skillId),
-              target: object(event.targetActorId),
+              damage: String(event.damage),
             })
-      }
+          : fill(NARRATION.hitEnemy, {
+              target: object(event.targetActorId),
+              skill: skillName(event.skillId),
+              damage: String(event.damage),
+            })
       case 'blocked':
         return isPlayer(event.targetActorId)
           ? fill(NARRATION.blockedPlayer, { skill: skillName(event.skillId) })
@@ -552,11 +562,17 @@
             })
       case 'unreactable':
         return isPlayer(event.targetActorId)
-          ? encounter.narration.tooFastPlayer
-          : encounter.narration.tooFastEnemy
+          ? fill(NARRATION.unreactablePlayer, { skill: skillName(event.skillId) })
+          : fill(NARRATION.unreactableEnemy, {
+              skill: skillName(event.skillId),
+              target: object(event.targetActorId),
+            })
       case 'buffed':
         return isPlayer(event.actorId)
-          ? fill(NARRATION.buffedPlayer, { skill: skillName(event.skillId) })
+          ? fill(NARRATION.buffedPlayer, {
+              skill: skillName(event.skillId),
+              duration: formatTick(event.duration),
+            })
           : fill(NARRATION.buffedEnemy, {
               actor: subject(event.actorId),
               skill: skillName(event.skillId),
@@ -661,6 +677,7 @@
     awarded = false
     selectedEssenceId = null
     lastEssence = null
+    runMessages = []
     fightSerial += 1
     revealedCount = 0
     const next = beginFight(run, encounter.id)
@@ -675,6 +692,7 @@
     awarded = false
     selectedEssenceId = null
     lastEssence = null
+    runMessages = []
     fightSerial += 1
     revealedCount = 0
     const next = beginFight(run)
@@ -688,6 +706,7 @@
     awarded = true
     selectedEssenceId = null
     lastEssence = null
+    runMessages = []
   }
 
   function selectEssence(id: string): void {
@@ -696,19 +715,41 @@
 
   function onSlot(index: number): void {
     if (selectedEssenceId !== null) {
+      const essence = run.essences.find((entry) => entry.id === selectedEssenceId)
       run = loadEssence(run, selectedEssenceId, index)
+      if (essence !== undefined) {
+        runMessages = [
+          ...runMessages,
+          fill(NARRATION.loadedEssence, { essence: essence.name }),
+        ]
+      }
       selectedEssenceId = null
       return
     }
+    const equipped = run.slots[index]
     run = unloadEssence(run, index)
+    if (equipped !== null && equipped !== undefined) {
+      runMessages = [
+        ...runMessages,
+        fill(NARRATION.unloadedEssence, { essence: equipped.name }),
+      ]
+    }
   }
 
   function equipGear(itemId: string): void {
+    const item = run.items.find((entry) => entry.id === itemId)
     run = equipItem(run, itemId)
+    if (item !== undefined) {
+      runMessages = [...runMessages, fill(NARRATION.equippedItem, { item: item.name })]
+    }
   }
 
   function unequipGear(slot: EquipmentSlot): void {
+    const item = run.gear[slot]
     run = unequipItem(run, slot)
+    if (item !== null) {
+      runMessages = [...runMessages, fill(NARRATION.removedItem, { item: item.name })]
+    }
   }
 
   function rarityLabel(rarity: string): string {
